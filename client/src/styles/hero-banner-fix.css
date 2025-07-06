@@ -1,0 +1,25 @@
+/* Hero Banner Animation Fixes */
+
+/* Make sure text elements are visible during animation */
+[data-component-name="HeroBanner"] * {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  transform: translateZ(0);
+}
+
+/* Make sure no global styles interfere with our animations */
+[data-component-name="HeroBanner"] span,
+[data-component-name="HeroBanner"] p,
+[data-component-name="HeroBanner"] button {
+  opacity: 0; /* Start hidden, GSAP will control visibility */
+  transform: translateY(20px); /* Initial position */
+  transition: none !important; /* Disable any transitions that might interfere */
+}
+
+/* Ensure any force-visible CSS doesn't affect our hero banner */
+[data-component-name="HeroBanner"] * {
+  visibility: visible !important;
+  display: inherit !important;
+  /* But let GSAP control opacity */
+}
