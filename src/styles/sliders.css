@@ -1,0 +1,299 @@
+/* 🎠 Slider/Carousel Styling for Kadal Thunai */
+
+/* === Swiper Base Overrides === */
+.kadal-swiper {
+  width: 100%;
+  padding: 0 2rem 3rem 2rem; /* Space for navigation and pagination */
+}
+
+.swiper-slide-custom {
+  height: auto;
+  display: flex;
+  align-items: stretch;
+}
+
+/* === Custom Navigation Styling === */
+.swiper-button-prev-custom,
+.swiper-button-next-custom {
+  border: 1px solid var(--gray-200);
+  color: var(--primary-accent);
+  transition: all var(--transition-normal);
+}
+
+.swiper-button-prev-custom:hover,
+.swiper-button-next-custom:hover {
+  background-color: var(--primary-accent) !important;
+  color: var(--white);
+  border-color: var(--primary-accent);
+}
+
+.swiper-button-prev-custom:disabled,
+.swiper-button-next-custom:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* === Custom Pagination Styling === */
+.kadal-swiper .swiper-pagination {
+  bottom: 0.5rem;
+}
+
+.kadal-swiper .swiper-pagination-bullet {
+  width: 12px;
+  height: 12px;
+  background-color: var(--gray-200);
+  opacity: 1;
+  transition: all var(--transition-normal);
+}
+
+.kadal-swiper .swiper-pagination-bullet-active {
+  background-color: var(--primary-accent);
+  transform: scale(1.2);
+}
+
+/* === Testimonials Slider Specific === */
+.testimonials-slider .swiper-slide-custom {
+  padding: var(--space-md);
+}
+
+.testimonials-slider .swiper-wrapper {
+  align-items: stretch;
+}
+
+.testimonial-card {
+  background: linear-gradient(135deg, var(--white) 0%, var(--gray-50) 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-200);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all var(--transition-normal);
+}
+
+.testimonial-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-accent);
+}
+
+.testimonial-content {
+  font-size: var(--font-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--text-primary);
+  margin-bottom: var(--space-lg);
+  font-style: italic;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: auto;
+}
+
+.testimonial-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background-color: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-bold);
+  color: var(--primary-accent);
+}
+
+.testimonial-name {
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-base);
+}
+
+.testimonial-role {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+/* === Blog Slider Specific === */
+.blog-slider .swiper-slide-custom {
+  padding: var(--space-sm);
+}
+
+.blog-card {
+  background-color: var(--white);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.blog-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-xl);
+}
+
+.blog-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.blog-card:hover .blog-image {
+  transform: scale(1.05);
+}
+
+.blog-content {
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.blog-title {
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  line-height: var(--leading-tight);
+}
+
+.blog-excerpt {
+  font-size: var(--font-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+  margin-bottom: var(--space-lg);
+  flex-grow: 1;
+}
+
+.blog-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-top: auto;
+}
+
+.blog-read-more {
+  color: var(--primary-accent);
+  font-weight: var(--font-semibold);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.blog-read-more:hover {
+  color: var(--primary-hover);
+}
+
+/* === Product Slider Specific === */
+.product-slider .swiper-slide-custom {
+  padding: var(--space-sm);
+}
+
+.product-card {
+  background-color: var(--white);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--gray-200);
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary-accent);
+}
+
+.product-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  transition: transform var(--transition-normal);
+}
+
+.product-card:hover .product-image {
+  transform: scale(1.03);
+}
+
+/* === Mobile Responsive === */
+@media (max-width: 768px) {
+  .kadal-swiper {
+    padding: 0 1rem 2rem 1rem;
+  }
+  
+  .swiper-button-prev-custom,
+  .swiper-button-next-custom {
+    display: none; /* Hide navigation buttons on mobile */
+  }
+  
+  .testimonial-card {
+    padding: var(--space-lg);
+  }
+  
+  .testimonial-content {
+    font-size: var(--font-base);
+  }
+  
+  .blog-image,
+  .product-image {
+    height: 160px;
+  }
+  
+  .blog-content {
+    padding: var(--space-md);
+  }
+}
+
+/* === Touch-friendly improvements === */
+@media (hover: none) {
+  .swiper-button-prev-custom,
+  .swiper-button-next-custom {
+    opacity: 0.8;
+  }
+  
+  .kadal-swiper .swiper-pagination-bullet {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* === Smooth scrolling for mobile === */
+.kadal-swiper {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* === Loading state === */
+.slider-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  background-color: var(--gray-50);
+  border-radius: var(--radius-lg);
+}
+
+.slider-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--gray-200);
+  border-top: 3px solid var(--primary-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
