@@ -1,0 +1,207 @@
+/* [project]/client/src/styles/animations.css [app-client] (css, ) */
+.hover-lift {
+  transition: transform .3s, box-shadow .3s;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px #0000001a, 0 10px 10px -5px #0000000a;
+}
+
+@keyframes subtle-pulse {
+  0% {
+    box-shadow: 0 0 #e53e3e66;
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px #e53e3e00;
+  }
+
+  100% {
+    box-shadow: 0 0 #e53e3e00;
+  }
+}
+
+.pulse-animation {
+  animation: 2s infinite subtle-pulse;
+}
+
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px #e53e3e66;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: .5s ease-out forwards fade-in;
+}
+
+.stagger-fade-in > * {
+  opacity: 0;
+  animation: .5s ease-out forwards fade-in;
+}
+
+.stagger-fade-in > :first-child {
+  animation-delay: .1s;
+}
+
+.stagger-fade-in > :nth-child(2) {
+  animation-delay: .2s;
+}
+
+.stagger-fade-in > :nth-child(3) {
+  animation-delay: .3s;
+}
+
+.stagger-fade-in > :nth-child(4) {
+  animation-delay: .4s;
+}
+
+.stagger-fade-in > :nth-child(5) {
+  animation-delay: .5s;
+}
+
+.stagger-fade-in > :nth-child(6) {
+  animation-delay: .6s;
+}
+
+.stagger-fade-in > :nth-child(7) {
+  animation-delay: .7s;
+}
+
+.stagger-fade-in > :nth-child(8) {
+  animation-delay: .8s;
+}
+
+.shadow-subtle {
+  box-shadow: 0 1px 3px #0000000d, 0 1px 2px #0000001a;
+  transition: box-shadow .3s;
+}
+
+.shadow-subtle:hover {
+  box-shadow: 0 4px 6px #0000000d, 0 1px 3px #0000001a;
+}
+
+.shadow-card {
+  box-shadow: 0 4px 6px -1px #0000001a, 0 2px 4px -1px #0000000f;
+  transition: box-shadow .3s, transform .3s;
+}
+
+.shadow-card:hover {
+  box-shadow: 0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d;
+}
+
+.btn-hover-effect {
+  position: relative;
+  overflow: hidden;
+  transition: all .3s;
+}
+
+.btn-hover-effect:after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: #ffffff4d;
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1)translate(-50%);
+  transform-origin: 50%;
+}
+
+.btn-hover-effect:hover:after {
+  animation: 1s ease-out ripple;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: .5;
+  }
+
+  20% {
+    transform: scale(25);
+    opacity: .3;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(40);
+  }
+}
+
+.icon-spin {
+  transition: transform .3s;
+}
+
+.icon-spin:hover {
+  transform: rotate(15deg);
+}
+
+.icon-scale {
+  transition: transform .2s;
+}
+
+.icon-scale:hover {
+  transform: scale(1.2);
+}
+
+.img-zoom {
+  transition: transform .5s;
+}
+
+.img-zoom:hover {
+  transform: scale(1.05);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.loading-shimmer {
+  background: linear-gradient(90deg, #fff0 0%, #fff3 50%, #fff0 100%);
+  background-size: 200% 100%;
+  animation: 1.5s infinite shimmer;
+}
+
+.scroll-indicator {
+  position: relative;
+}
+
+.scroll-indicator:after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #e53e3eb3 0%, #e53e3ee6 100%);
+  transform-origin: 0;
+  transform: scaleX(0);
+  transition: transform .3s;
+}
+
+.scroll-indicator:hover:after {
+  transform: scaleX(1);
+}
+
+/*# sourceMappingURL=src_styles_animations_3ffd7f.css.map*/

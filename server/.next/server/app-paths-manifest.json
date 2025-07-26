@@ -1,0 +1,11 @@
+{
+  "/api/content/refresh/route": "app/api/content/refresh/route.js",
+  "/page": "app/page.js",
+  "/api/categories/route": "app/api/categories/route.js",
+  "/api/blog-posts/route": "app/api/blog-posts/route.js",
+  "/api/featured-fish/route": "app/api/featured-fish/route.js",
+  "/api/fish-picks/route": "app/api/fish-picks/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/products/route": "app/api/products/route.js",
+  "/api/trusted-badges/route": "app/api/trusted-badges/route.js"
+}

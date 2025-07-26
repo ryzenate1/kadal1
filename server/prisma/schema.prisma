@@ -1,0 +1,242 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
+  phoneNumber   String    @unique
+  password      String
+  role          String    @default("customer") // "customer" or "admin"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  addresses     Address[]
+  orders        Order[]
+  loyaltyPoints Int       @default(0)
+  loyaltyTier   String    @default("Bronze")
+  paymentMethods PaymentMethod[]
+  loyaltyActivities LoyaltyActivity[]
+  activityLogs  ActivityLog[]
+  notifications Notification[]
+}
+
+model Address {
+  id          String  @id @default(uuid())
+  userId      String
+  name        String
+  address     String
+  city        String
+  state       String
+  pincode     String
+  isDefault   Boolean @default(false)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  imageUrl    String?
+  type        String?  @default("Fish")
+  icon        String?  @default("Fish")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+}
+
+model Product {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  description   String?
+  price         Float
+  originalPrice Float?
+  imageUrl      String?
+  weight        String?
+  tag           String?
+  featured      Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  stock         Int       @default(0)
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  orderItems    OrderItem[]
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String
+  addressId       String?
+  status          String      @default("pending")
+  totalAmount     Float
+  paymentStatus   String      @default("pending")
+  paymentMethod   String?
+  trackingNumber  String?     @unique
+  estimatedDelivery String?
+  eta             Int?        @default(30)  // Estimated time of arrival in minutes
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address         Address?    @relation(fields: [addressId], references: [id])
+  orderItems      OrderItem[]
+  pointsEarned    Int         @default(0)
+  trackingHistory TrackingHistory[]
+  deliveryAgent   String?     // Name of delivery person
+  deliveryPhone   String?     // Contact of delivery person
+}
+
+model TrackingHistory {
+  id          String   @id @default(uuid())
+  orderId     String
+  status      String
+  description String
+  timestamp   DateTime @default(now())
+  metadata    String?  // JSON string for location data (lat, lng, etc.)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  price       Float
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id          String  @id @default(uuid())
+  userId      String
+  type        String  // "card", "upi", etc.
+  cardNumber  String? // Last 4 digits only
+  cardBrand   String? // Visa, Mastercard, etc.
+  expiryDate  String?
+  isDefault   Boolean @default(false)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoyaltyActivity {
+  id          String   @id @default(uuid())
+  userId      String
+  points      Int
+  type        String   // "earned", "redeemed", "expired"
+  description String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Remove the generic Card model if it's being replaced or not used for TrustedBadges
+// model Card {
+//   id          String  @id @default(uuid())
+//   title       String
+//   description String?
+//   imageUrl    String?
+//   link        String?
+//   section     String  // e.g., 'trusted-badges', 'offers'
+//   type        String? // e.g., 'icon-card', 'image-card'
+//   icon        String? // For icon-based cards, e.g., 'ShieldCheck' (Lucide icon name)
+//   order       Int?    // Optional ordering
+//   isActive    Boolean @default(true)
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+// }
+
+model TrustedBadge {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  iconName    String   @default("Shield")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model ActivityLog {
+  id            String    @id @default(uuid())
+  userId        String
+  action        String
+  description   String
+  resourceType  String
+  resourceId    String?
+  metadata      String?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  message     String
+  type        String    // 'order', 'profile', 'system', etc.
+  resourceType String
+  resourceId  String?
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StoreSetting {
+  key         String    @id
+  value       String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ShippingMethod {
+  id                    String    @id @default(uuid())
+  name                  String
+  description           String?
+  price                 Float
+  estimatedDeliveryDays Int       @default(1)
+  isActive              Boolean   @default(true)
+  order                 Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Content {
+  id          String    @id @default(uuid())
+  page        String    // e.g., 'home', 'about', 'contact'
+  section     String    // e.g., 'hero', 'featured', 'categories'
+  key         String    // unique identifier within page/section
+  title       String?
+  content     String    // main content (can be JSON string for complex data)
+  type        String    @default("text") // 'text', 'html', 'json', 'image', 'video'
+  order       Int       @default(0)
+  active      Boolean   @default(true)
+  metadata    String?   // JSON string for additional data
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([page, section, key])
+}
+
+model Media {
+  id          String    @id @default(uuid())
+  name        String
+  type        String
+  size        Int
+  url         String
+  alt         String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

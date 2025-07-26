@@ -1,0 +1,250 @@
+/* [project]/client/src/styles/fixes.css [app-client] (css, ) */
+.categories-section, #categories-section, section[id*="categories"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.categories-section .motion-div, #categories-section .motion-div, section[id*="categories"] div[class*="motion"], div[class*="motion"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.categories-section a, #categories-section a, section[id*="categories"] a {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+section.py-6.sm\:py-8.lg\:py-12.space-y-6.sm\:space-y-8.lg\:space-y-10, section.py-6.sm\:py-8.lg\:py-12 {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+div[style*="opacity: 0"], div[style*="visibility: hidden"], div[style*="display: none"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-slider {
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-slider > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.featured-card {
+  transition: all .3s cubic-bezier(.4, 0, .2, 1);
+}
+
+.featured-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px #0000001a, 0 10px 10px -5px #0000000a;
+}
+
+@media (width <= 640px) {
+  .featured-seafood-title {
+    font-size: 1.75rem;
+    line-height: 2rem;
+  }
+
+  .featured-seafood-subtitle {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+}
+
+@media (width >= 641px) and (width <= 1024px) {
+  .featured-seafood-title {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+  }
+
+  .featured-seafood-subtitle {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+}
+
+@media (width >= 1025px) {
+  .featured-seafood-title {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  .featured-seafood-subtitle {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
+
+[data-framer-component-type], [data-motion], .framer-motion, .motion-safe\:animate-fadeIn, .motion-safe\:animate-slideIn, .motion-safe\:animate-scaleUp {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.fresh-delivery-section, #fresh-delivery-section, section[id*="fresh-delivery"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+a[href*="/fish/"], a[href*="/category/"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+.motion-div, div[style*="transform"], div[style*="transition"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+button, a, input, select, textarea {
+  position: relative;
+  z-index: 5;
+}
+
+[data-framer-name], [data-framer-component-type="Frame"], [data-framer-component-type="Stack"], [data-framer-component-type="ScrollContainer"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+body .force-visible, section .force-visible, div .force-visible {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+[data-state="hidden"], [data-state="closed"], .animate-fade-in, .animate-slide-in, .animate-scale-in {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  display: block !important;
+}
+
+@keyframes force-visible {
+  0%, 100% {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+[style*="animation"], .animate-in, .animate-out {
+  animation: .1s ease-in-out force-visible !important;
+}
+
+main > section > *, .container > *, .grid > *, .flex > * {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.grid > div, .flex > div, .space-y-6 > *, .space-y-8 > *, .space-y-10 > * {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+[id*="home"], [id*="section"], [class*="section"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+img, picture, .relative img, .absolute img {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+@media (width <= 768px) {
+  .grid {
+    gap: 1rem !important;
+  }
+
+  .grid > div {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .flex.overflow-x-auto {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .flex-shrink-0 {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+.mb-6.sm\:mb-8.lg\:mb-10, [class*="mb-6"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.flex.justify-between.items-center.mb-4 button, .p-2.rounded-full {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+}
+
+.overflow-hidden.rounded-xl.shadow-md, .bg-white.hover\:shadow-lg {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.testimonials-section *, .blog-section * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+}
+
+.touch-button {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+@media (width <= 768px) {
+  .mobile-card-shadow {
+    box-shadow: 0 4px 12px #0000001a;
+  }
+
+  .mobile-card-shadow:hover {
+    box-shadow: 0 8px 24px #00000026;
+  }
+}
+
+@media (width <= 768px) {
+  .testimonials-section .grid {
+    display: block !important;
+  }
+
+  .testimonials-section .grid > div {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (width <= 640px) {
+  .blog-section .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .blog-section .card {
+    max-width: none;
+    margin: 0 auto 1.5rem;
+  }
+}
+
+/*# sourceMappingURL=src_styles_fixes_3ffd7f.css.map*/

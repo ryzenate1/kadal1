@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "kadal-thunai",
+  "builds": [
+    {
+      "src": "client/next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY": "@next_public_google_maps_api_key"
+  },
+  "installCommand": "cd client && npm install",
+  "buildCommand": "cd client && npm run build",
+  "outputDirectory": "client/.next"
+}

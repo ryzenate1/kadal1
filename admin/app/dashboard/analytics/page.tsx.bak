@@ -1,0 +1,506 @@
+/**
+ * Analytics Dashboard - Kadal Thunai Admin Panel
+ * 
+ * A comprehensive analytics dashboard providing real-time business intelligence
+ * and performance metrics for the fish marketplace platform.
+ * 
+ * Key Features:
+ * - Overview metrics (Revenue, Orders, Customers, Products) with trend indicators
+ * - Interactive charts (Revenue trends, Order trends, Customer insights)
+ * - Top products performance ranking with sales data
+ * - Recent activity feed showing system events
+ * - Date range filtering (24h, 7d, 30d, 90d)
+ * - Responsive design with mobile optimization
+ * - API integration with graceful fallback to mock data
+ * - Loading states and error handling
+ * 
+ * Technical Stack:
+ * - React with TypeScript
+ * - Next.js 14+ (client component)
+ * - Recharts for data visualization
+ * - Shadcn/ui components
+ * - Tailwind CSS for styling
+ * 
+ * @version 1.0.0
+ */
+
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  BarChart, 
+  Bar, 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Users, 
+  ShoppingCart, 
+  DollarSign,
+  Package,
+  Activity,
+  Calendar,
+  Filter
+} from 'lucide-react';
+import { fetchWithAuth } from '@/lib/apiUtils';
+
+interface AnalyticsData {
+  overview: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalCustomers: number;
+    totalProducts: number;
+    revenueChange: number;
+    ordersChange: number;
+    customersChange: number;
+    productsChange: number;
+  };
+  salesData: Array<{ date: string; revenue: number; orders: number }>;
+  topProducts: Array<{ name: string; sales: number; revenue: number }>;
+  customerMetrics: {
+    newCustomers: number;
+    returningCustomers: number;
+    customerGrowth: number;
+  };
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    description: string;
+    timestamp: string;
+  }>;
+}
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+
+export default function AnalyticsPage() {
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState('7d');
+  const [refreshing, setRefreshing] = useState(false);
+  const fetchAnalytics = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetchWithAuth(`/api/analytics?range=${dateRange}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setAnalyticsData(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
+      
+      // Fallback to mock data for development
+      setAnalyticsData({
+        overview: {
+          totalRevenue: 15420.50,
+          totalOrders: 342,
+          totalCustomers: 128,
+          totalProducts: 45,
+          revenueChange: 12.5,
+          ordersChange: 8.3,
+          customersChange: 15.2,
+          productsChange: 5.1
+        },
+        salesData: [
+          { date: '2024-01-01', revenue: 1200, orders: 25 },
+          { date: '2024-01-02', revenue: 1580, orders: 32 },
+          { date: '2024-01-03', revenue: 890, orders: 18 },
+          { date: '2024-01-04', revenue: 2100, orders: 41 },
+          { date: '2024-01-05', revenue: 1750, orders: 35 },
+          { date: '2024-01-06', revenue: 2300, orders: 46 },
+          { date: '2024-01-07', revenue: 1950, orders: 38 }
+        ],
+        topProducts: [
+          { name: 'Fresh Salmon', sales: 85, revenue: 2550 },
+          { name: 'Ocean Prawns', sales: 72, revenue: 2160 },
+          { name: 'Sea Bass', sales: 58, revenue: 1740 },
+          { name: 'Tuna Steaks', sales: 45, revenue: 1350 },
+          { name: 'Crab Legs', sales: 32, revenue: 960 }
+        ],
+        customerMetrics: {
+          newCustomers: 45,
+          returningCustomers: 83,
+          customerGrowth: 15.2
+        },
+        recentActivity: [
+          {
+            id: '1',
+            type: 'order',
+            description: 'New order #1234 placed',
+            timestamp: '2024-01-15T10:30:00Z'
+          },
+          {
+            id: '2',
+            type: 'product',
+            description: 'Product "Fresh Tuna" updated',
+            timestamp: '2024-01-15T09:45:00Z'
+          }
+        ]
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [dateRange]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  const formatPercentage = (value: number) => {
+    const sign = value >= 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
+  };
+
+  if (loading) {
+    return (
+      &lt;div className="flex items-center justify-center h-96"&gt;
+        &lt;div className="text-center"&gt;
+          &lt;div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"&gt;&lt;/div&gt;
+          &lt;p className="mt-2 text-gray-600"&gt;Loading analytics...&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    );
+  }
+
+  return (
+    &lt;div className="container mx-auto p-6 space-y-6"&gt;
+      {/* Header */}
+      &lt;div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"&gt;
+        &lt;div&gt;
+          &lt;h1 className="text-2xl font-bold text-gray-900"&gt;Analytics Dashboard&lt;/h1&gt;
+          &lt;p className="text-gray-600"&gt;Monitor your business performance and insights&lt;/p&gt;
+        &lt;/div&gt;
+        
+        &lt;div className="flex flex-col sm:flex-row gap-2"&gt;
+          &lt;Select value={dateRange} onValueChange={setDateRange}&gt;
+            &lt;SelectTrigger className="w-full sm:w-40"&gt;
+              &lt;SelectValue placeholder="Select range" /&gt;
+            &lt;/SelectTrigger&gt;
+            &lt;SelectContent&gt;
+              &lt;SelectItem value="1d"&gt;Last 24 hours&lt;/SelectItem&gt;
+              &lt;SelectItem value="7d"&gt;Last 7 days&lt;/SelectItem&gt;
+              &lt;SelectItem value="30d"&gt;Last 30 days&lt;/SelectItem&gt;
+              &lt;SelectItem value="90d"&gt;Last 90 days&lt;/SelectItem&gt;
+            &lt;/SelectContent&gt;
+          &lt;/Select&gt;
+          
+          &lt;Button 
+            onClick={fetchAnalytics} 
+            disabled={refreshing}
+            variant="outline"
+            size="sm"
+          &gt;
+            {refreshing ? (
+              &lt;&gt;
+                &lt;div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"&gt;&lt;/div&gt;
+                Refreshing...
+              &lt;/&gt;
+            ) : (
+              &lt;&gt;
+                &lt;Activity className="h-4 w-4 mr-2" /&gt;
+                Refresh
+              &lt;/&gt;
+            )}
+          &lt;/Button&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+
+      {error && (
+        &lt;Card className="border-red-200 bg-red-50"&gt;
+          &lt;CardContent className="pt-6"&gt;
+            &lt;div className="flex items-center gap-2 text-red-700"&gt;
+              &lt;Activity className="h-4 w-4" /&gt;
+              &lt;span&gt;{error}&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;p className="text-sm text-red-600 mt-1"&gt;
+              Showing sample data for development. Please check your API connection.
+            &lt;/p&gt;
+          &lt;/CardContent&gt;
+        &lt;/Card&gt;
+      )}
+
+      {analyticsData && (
+        &lt;&gt;
+          {/* Overview Cards */}
+          &lt;div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"&gt;
+            &lt;Card&gt;
+              &lt;CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"&gt;
+                &lt;CardTitle className="text-sm font-medium"&gt;Total Revenue&lt;/CardTitle&gt;
+                &lt;DollarSign className="h-4 w-4 text-muted-foreground" /&gt;
+              &lt;/CardHeader&gt;
+              &lt;CardContent&gt;
+                &lt;div className="text-2xl font-bold"&gt;{formatCurrency(analyticsData.overview.totalRevenue)}&lt;/div&gt;
+                &lt;div className="flex items-center text-xs text-muted-foreground"&gt;
+                  {analyticsData.overview.revenueChange >= 0 ? (
+                    &lt;TrendingUp className="h-3 w-3 mr-1 text-green-500" /&gt;
+                  ) : (
+                    &lt;TrendingDown className="h-3 w-3 mr-1 text-red-500" /&gt;
+                  )}
+                  &lt;span className={analyticsData.overview.revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}&gt;
+                    {formatPercentage(analyticsData.overview.revenueChange)} from last period
+                  &lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/CardContent&gt;
+            &lt;/Card&gt;
+
+            &lt;Card&gt;
+              &lt;CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"&gt;
+                &lt;CardTitle className="text-sm font-medium"&gt;Total Orders&lt;/CardTitle&gt;
+                &lt;ShoppingCart className="h-4 w-4 text-muted-foreground" /&gt;
+              &lt;/CardHeader&gt;
+              &lt;CardContent&gt;
+                &lt;div className="text-2xl font-bold"&gt;{analyticsData.overview.totalOrders.toLocaleString()}&lt;/div&gt;
+                &lt;div className="flex items-center text-xs text-muted-foreground"&gt;
+                  {analyticsData.overview.ordersChange >= 0 ? (
+                    &lt;TrendingUp className="h-3 w-3 mr-1 text-green-500" /&gt;
+                  ) : (
+                    &lt;TrendingDown className="h-3 w-3 mr-1 text-red-500" /&gt;
+                  )}
+                  &lt;span className={analyticsData.overview.ordersChange >= 0 ? 'text-green-500' : 'text-red-500'}&gt;
+                    {formatPercentage(analyticsData.overview.ordersChange)} from last period
+                  &lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/CardContent&gt;
+            &lt;/Card&gt;
+
+            &lt;Card&gt;
+              &lt;CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"&gt;
+                &lt;CardTitle className="text-sm font-medium"&gt;Total Customers&lt;/CardTitle&gt;
+                &lt;Users className="h-4 w-4 text-muted-foreground" /&gt;
+              &lt;/CardHeader&gt;
+              &lt;CardContent&gt;
+                &lt;div className="text-2xl font-bold"&gt;{analyticsData.overview.totalCustomers.toLocaleString()}&lt;/div&gt;
+                &lt;div className="flex items-center text-xs text-muted-foreground"&gt;
+                  {analyticsData.overview.customersChange >= 0 ? (
+                    &lt;TrendingUp className="h-3 w-3 mr-1 text-green-500" /&gt;
+                  ) : (
+                    &lt;TrendingDown className="h-3 w-3 mr-1 text-red-500" /&gt;
+                  )}
+                  &lt;span className={analyticsData.overview.customersChange >= 0 ? 'text-green-500' : 'text-red-500'}&gt;
+                    {formatPercentage(analyticsData.overview.customersChange)} from last period
+                  &lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/CardContent&gt;
+            &lt;/Card&gt;
+
+            &lt;Card&gt;
+              &lt;CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"&gt;
+                &lt;CardTitle className="text-sm font-medium"&gt;Total Products&lt;/CardTitle&gt;
+                &lt;Package className="h-4 w-4 text-muted-foreground" /&gt;
+              &lt;/CardHeader&gt;
+              &lt;CardContent&gt;
+                &lt;div className="text-2xl font-bold"&gt;{analyticsData.overview.totalProducts.toLocaleString()}&lt;/div&gt;
+                &lt;div className="flex items-center text-xs text-muted-foreground"&gt;
+                  {analyticsData.overview.productsChange >= 0 ? (
+                    &lt;TrendingUp className="h-3 w-3 mr-1 text-green-500" /&gt;
+                  ) : (
+                    &lt;TrendingDown className="h-3 w-3 mr-1 text-red-500" /&gt;
+                  )}
+                  &lt;span className={analyticsData.overview.productsChange >= 0 ? 'text-green-500' : 'text-red-500'}&gt;
+                    {formatPercentage(analyticsData.overview.productsChange)} from last period
+                  &lt;/span&gt;
+                &lt;/div&gt;
+              &lt;/CardContent&gt;
+            &lt;/Card&gt;
+          &lt;/div&gt;
+
+          {/* Charts */}
+          &lt;Tabs defaultValue="sales" className="space-y-4"&gt;
+            &lt;TabsList&gt;
+              &lt;TabsTrigger value="sales"&gt;Sales Overview&lt;/TabsTrigger&gt;
+              &lt;TabsTrigger value="products"&gt;Top Products&lt;/TabsTrigger&gt;
+              &lt;TabsTrigger value="customers"&gt;Customer Insights&lt;/TabsTrigger&gt;
+            &lt;/TabsList&gt;
+
+            &lt;TabsContent value="sales" className="space-y-4"&gt;
+              &lt;div className="grid grid-cols-1 lg:grid-cols-2 gap-6"&gt;
+                &lt;Card&gt;
+                  &lt;CardHeader&gt;
+                    &lt;CardTitle&gt;Revenue Trend&lt;/CardTitle&gt;
+                    &lt;CardDescription&gt;Daily revenue over the selected period&lt;/CardDescription&gt;
+                  &lt;/CardHeader&gt;
+                  &lt;CardContent&gt;
+                    &lt;ResponsiveContainer width="100%" height={300}&gt;
+                      &lt;LineChart data={analyticsData.salesData}&gt;
+                        &lt;CartesianGrid strokeDasharray="3 3" /&gt;
+                        &lt;XAxis dataKey="date" /&gt;
+                        &lt;YAxis /&gt;
+                        &lt;Tooltip formatter={(value) => formatCurrency(Number(value))} /&gt;
+                        &lt;Line type="monotone" dataKey="revenue" stroke="#8884d8" strokeWidth={2} /&gt;
+                      &lt;/LineChart&gt;
+                    &lt;/ResponsiveContainer&gt;
+                  &lt;/CardContent&gt;
+                &lt;/Card&gt;
+
+                &lt;Card&gt;
+                  &lt;CardHeader&gt;
+                    &lt;CardTitle&gt;Orders Trend&lt;/CardTitle&gt;
+                    &lt;CardDescription&gt;Daily orders over the selected period&lt;/CardDescription&gt;
+                  &lt;/CardHeader&gt;
+                  &lt;CardContent&gt;
+                    &lt;ResponsiveContainer width="100%" height={300}&gt;
+                      &lt;BarChart data={analyticsData.salesData}&gt;
+                        &lt;CartesianGrid strokeDasharray="3 3" /&gt;
+                        &lt;XAxis dataKey="date" /&gt;
+                        &lt;YAxis /&gt;
+                        &lt;Tooltip /&gt;
+                        &lt;Bar dataKey="orders" fill="#82ca9d" /&gt;
+                      &lt;/BarChart&gt;
+                    &lt;/ResponsiveContainer&gt;
+                  &lt;/CardContent&gt;
+                &lt;/Card&gt;
+              &lt;/div&gt;
+            &lt;/TabsContent&gt;
+
+            &lt;TabsContent value="products" className="space-y-4"&gt;
+              &lt;Card&gt;
+                &lt;CardHeader&gt;
+                  &lt;CardTitle&gt;Top Performing Products&lt;/CardTitle&gt;
+                  &lt;CardDescription&gt;Best selling products by revenue&lt;/CardDescription&gt;
+                &lt;/CardHeader&gt;
+                &lt;CardContent&gt;
+                  &lt;div className="space-y-4"&gt;
+                    {analyticsData.topProducts.map((product, index) => (
+                      &lt;div key={index} className="flex items-center justify-between p-3 border rounded-lg"&gt;
+                        &lt;div className="flex items-center gap-3"&gt;
+                          &lt;Badge variant="secondary"&gt;#{index + 1}&lt;/Badge&gt;
+                          &lt;div&gt;
+                            &lt;p className="font-medium"&gt;{product.name}&lt;/p&gt;
+                            &lt;p className="text-sm text-gray-600"&gt;{product.sales} sales&lt;/p&gt;
+                          &lt;/div&gt;
+                        &lt;/div&gt;
+                        &lt;div className="text-right"&gt;
+                          &lt;p className="font-semibold"&gt;{formatCurrency(product.revenue)}&lt;/p&gt;
+                        &lt;/div&gt;
+                      &lt;/div&gt;
+                    ))}
+                  &lt;/div&gt;
+                &lt;/CardContent&gt;
+              &lt;/Card&gt;
+            &lt;/TabsContent&gt;
+
+            &lt;TabsContent value="customers" className="space-y-4"&gt;
+              &lt;div className="grid grid-cols-1 lg:grid-cols-2 gap-6"&gt;
+                &lt;Card&gt;
+                  &lt;CardHeader&gt;
+                    &lt;CardTitle&gt;Customer Distribution&lt;/CardTitle&gt;
+                    &lt;CardDescription&gt;New vs returning customers&lt;/CardDescription&gt;
+                  &lt;/CardHeader&gt;
+                  &lt;CardContent&gt;
+                    &lt;ResponsiveContainer width="100%" height={300}&gt;
+                      &lt;PieChart&gt;
+                        &lt;Pie
+                          data={[
+                            { name: 'New Customers', value: analyticsData.customerMetrics.newCustomers },
+                            { name: 'Returning Customers', value: analyticsData.customerMetrics.returningCustomers }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        &gt;
+                          {[{ name: 'New Customers' }, { name: 'Returning Customers' }].map((entry, index) => (
+                            &lt;Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} /&gt;
+                          ))}
+                        &lt;/Pie&gt;
+                        &lt;Tooltip /&gt;
+                      &lt;/PieChart&gt;
+                    &lt;/ResponsiveContainer&gt;
+                  &lt;/CardContent&gt;
+                &lt;/Card&gt;
+
+                &lt;Card&gt;
+                  &lt;CardHeader&gt;
+                    &lt;CardTitle&gt;Customer Growth&lt;/CardTitle&gt;
+                    &lt;CardDescription&gt;Customer acquisition metrics&lt;/CardDescription&gt;
+                  &lt;/CardHeader&gt;
+                  &lt;CardContent className="space-y-4"&gt;
+                    &lt;div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg"&gt;
+                      &lt;span className="font-medium"&gt;New Customers&lt;/span&gt;
+                      &lt;span className="text-lg font-bold text-blue-600"&gt;{analyticsData.customerMetrics.newCustomers}&lt;/span&gt;
+                    &lt;/div&gt;
+                    &lt;div className="flex justify-between items-center p-3 bg-green-50 rounded-lg"&gt;
+                      &lt;span className="font-medium"&gt;Returning Customers&lt;/span&gt;
+                      &lt;span className="text-lg font-bold text-green-600"&gt;{analyticsData.customerMetrics.returningCustomers}&lt;/span&gt;
+                    &lt;/div&gt;
+                    &lt;div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg"&gt;
+                      &lt;span className="font-medium"&gt;Growth Rate&lt;/span&gt;
+                      &lt;span className="text-lg font-bold text-purple-600"&gt;
+                        {formatPercentage(analyticsData.customerMetrics.customerGrowth)}
+                      &lt;/span&gt;
+                    &lt;/div&gt;
+                  &lt;/CardContent&gt;
+                &lt;/Card&gt;
+              &lt;/div&gt;
+            &lt;/TabsContent&gt;
+          &lt;/Tabs&gt;
+
+          {/* Recent Activity */}
+          &lt;Card&gt;
+            &lt;CardHeader&gt;
+              &lt;CardTitle&gt;Recent Activity&lt;/CardTitle&gt;
+              &lt;CardDescription&gt;Latest system activities and events&lt;/CardDescription&gt;
+            &lt;/CardHeader&gt;
+            &lt;CardContent&gt;
+              &lt;div className="space-y-3"&gt;
+                {analyticsData.recentActivity.length > 0 ? (
+                  analyticsData.recentActivity.map((activity) => (
+                    &lt;div key={activity.id} className="flex items-center gap-3 p-3 border rounded-lg"&gt;
+                      &lt;div className="flex-shrink-0"&gt;
+                        &lt;Badge variant={activity.type === 'order' ? 'default' : 'secondary'}&gt;
+                          {activity.type}
+                        &lt;/Badge&gt;
+                      &lt;/div&gt;
+                      &lt;div className="flex-1"&gt;
+                        &lt;p className="text-sm"&gt;{activity.description}&lt;/p&gt;
+                        &lt;p className="text-xs text-gray-500"&gt;
+                          {new Date(activity.timestamp).toLocaleString()}
+                        &lt;/p&gt;
+                      &lt;/div&gt;
+                    &lt;/div&gt;
+                  ))
+                ) : (
+                  &lt;div className="text-center py-6 text-gray-500"&gt;
+                    &lt;Activity className="h-8 w-8 mx-auto mb-2 opacity-50" /&gt;
+                    &lt;p&gt;No recent activity found&lt;/p&gt;
+                  &lt;/div&gt;
+                )}
+              &lt;/div&gt;
+            &lt;/CardContent&gt;
+          &lt;/Card&gt;
+        &lt;/&gt;
+      )}
+    &lt;/div&gt;
+  );
+}

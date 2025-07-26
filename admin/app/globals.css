@@ -1,0 +1,307 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-solid border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Mobile-first responsive enhancements for admin panel */
+@layer utilities {
+  /* Mobile touch targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Mobile-optimized scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  
+  /* Mobile card spacing */
+  @media (max-width: 640px) {
+    .card-mobile {
+      margin: 0.5rem;
+      border-radius: 0.75rem;
+    }
+    
+    .grid-mobile {
+      gap: 0.75rem;
+    }
+    
+    .text-mobile-sm {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    
+    .text-mobile-xs {
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+  }
+  
+  /* Responsive table */
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  /* Mobile navigation improvements */
+  .nav-mobile {
+    padding: 0.5rem;
+  }
+  
+  .nav-mobile .nav-item {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Mobile dashboard grid */
+  @media (max-width: 768px) {
+    .dashboard-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    
+    .dashboard-card {
+      padding: 1rem;
+    }
+    
+    .dashboard-card-title {
+      font-size: 0.75rem;
+      line-height: 1rem;
+    }
+    
+    .dashboard-card-value {
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+    }
+  }
+}
+
+/* Fix for mobile dropdowns */
+@media (max-width: 640px) {
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+  }
+}
+
+/* Improve mobile form inputs */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+}
+
+/* Mobile sheet overlay */
+.sheet-overlay-mobile {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(2px);
+}
+
+/* Mobile navigation enhancements */
+@layer components {
+  .mobile-nav-overlay {
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+  }
+  
+  .mobile-nav-content {
+    width: min(85vw, 320px);
+    max-height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  
+  .mobile-nav-item {
+    padding: 0.75rem 1rem;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-radius: 0.5rem;
+    transition: all 0.15s ease-in-out;
+  }
+  
+  .mobile-nav-item:active {
+    transform: scale(0.98);
+  }
+  
+  .mobile-nav-section {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .mobile-nav-section:last-child {
+    border-bottom: none;
+  }
+}
+
+/* Mobile form improvements */
+@layer components {
+  .mobile-form-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 44px;
+    padding: 0.75rem;
+  }
+  
+  .mobile-form-button {
+    min-height: 44px;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
+  .mobile-form-select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  
+  .mobile-form-textarea {
+    font-size: 16px;
+    min-height: 120px;
+    padding: 0.75rem;
+  }
+}
+
+/* Mobile table alternatives */
+@layer components {
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .mobile-card-item {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+  
+  .mobile-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  
+  .mobile-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .mobile-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Mobile dropdown improvements */
+@media (max-width: 640px) {
+  [data-radix-select-content] {
+    max-height: 50vh !important;
+    width: var(--radix-select-trigger-width) !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+  
+  [data-radix-dropdown-menu-content] {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+  }
+}

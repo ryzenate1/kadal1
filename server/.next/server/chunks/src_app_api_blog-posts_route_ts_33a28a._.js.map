@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 5, "column": 0}, "map": {"version":3,"sources":["/turbopack/[project]/client/src/app/api/blog-posts/route.ts"],"sourcesContent":["import { NextRequest, NextResponse } from 'next/server';\r\n\r\nexport const dynamic = 'force-dynamic';\r\n\r\nexport async function GET(req: NextRequest) {\r\n  try {\r\n    const response = await fetch('http://localhost:5001/api/blog-posts');\r\n    \r\n    if (!response.ok) {\r\n      console.error(`Server API returned status: ${response.status}`);\r\n      return NextResponse.json({ error: 'Failed to fetch blog posts' }, { status: response.status });\r\n    }\r\n    \r\n    const data = await response.json();\r\n    return NextResponse.json(data);\r\n  } catch (error) {\r\n    console.error('Error fetching blog posts:', error);\r\n    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });\r\n  }\r\n} "],"names":[],"mappings":";;;;;;;AAEO,MAAM,UAAU;AAEhB,eAAe,IAAI,GAAgB;IACxC,IAAI;QACF,MAAM,WAAW,MAAM,MAAM;QAE7B,IAAI,CAAC,SAAS,EAAE,EAAE;YAChB,QAAQ,KAAK,CAAC,CAAC,4BAA4B,EAAE,SAAS,MAAM,CAAC,CAAC;YAC9D,OAAO,gIAAA,CAAA,eAAY,CAAC,IAAI,CAAC;gBAAE,OAAO;YAA6B,GAAG;gBAAE,QAAQ,SAAS,MAAM;YAAC;QAC9F;QAEA,MAAM,OAAO,MAAM,SAAS,IAAI;QAChC,OAAO,gIAAA,CAAA,eAAY,CAAC,IAAI,CAAC;IAC3B,EAAE,OAAO,OAAO;QACd,QAAQ,KAAK,CAAC,8BAA8B;QAC5C,OAAO,gIAAA,CAAA,eAAY,CAAC,IAAI,CAAC;YAAE,OAAO;QAAwB,GAAG;YAAE,QAAQ;QAAI;IAC7E;AACF"}},
+    {"offset": {"line": 35, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
+}
