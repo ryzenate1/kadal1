@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, forwardRef } from 'react';
+import React, { ReactNode, forwardRef } from 'react';
 import { motion, Variants, HTMLMotionProps } from 'framer-motion';
 import { useAnimatedInView } from '@/hooks/useAnimatedInView';
 
@@ -74,9 +74,10 @@ const AnimatedElement = forwardRef<HTMLElement, AnimatedElementProps>(({
     threshold,
   });
 
-  // Use a simpler ref handling approach
-  const MotionComponent = motion[Tag as keyof typeof motion] || motion.div;
-  const motionProps: any = {
+  // Cast to any to avoid TS "type instantiation is excessively deep" error
+  // that occurs with framer-motion's generic motion[tag] pattern.
+  const MotionComponent = (motion[Tag as keyof typeof motion] || motion.div) as React.ElementType;
+  const motionProps = {
     ref: inViewRef,
     initial: "hidden",
     animate: controls,

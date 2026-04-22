@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Quote, Star } from 'lucide-react';
+import { Quote } from 'lucide-react';
 import SliderWrapper from '../ui/SliderWrapper';
 import { fadeIn, staggerContainer, staggerItem } from '@/utils/motionUtils';
 import { SafeHtmlButton } from '@/components/ui/safe-html-button';
@@ -122,47 +122,54 @@ const TestimonialCard = ({ testimonial }: { testimonial: typeof testimonials[0] 
   
   return (
     <motion.div 
-      className="testimonial-card"
+      className="bg-white p-4 sm:p-5 max-w-sm w-full mx-auto rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 flex flex-col h-full"
       variants={staggerItem}
       whileHover={{ y: -4 }}
       transition={{ duration: 0.3 }}
     >
       {/* Quote icon */}
-      <div className="flex justify-center mb-4">
-        <Quote className="w-8 h-8 text-primary-accent" fill="currentColor" />
+      <div className="flex justify-between items-start mb-3">
+        <Quote className="h-5 w-5 text-red-500 flex-shrink-0" />
+        <div className="flex">
+          {[...Array(5)].map((_, i) => (
+            <svg
+              key={i}
+              className={`h-4 w-4 ${i < testimonial.rating ? 'text-yellow-400' : 'text-gray-200'}`}
+              fill="currentColor"
+              viewBox="0 0 20 20"
+              aria-hidden="true"
+            >
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          ))}
+        </div>
       </div>
-      
+
       {/* Testimonial content */}
-      <div className="testimonial-content">
-        <p className="text-lg leading-relaxed mb-4">
+      <div className="flex-grow flex flex-col">
+        <p className="text-gray-700 text-base sm:text-lg italic font-medium leading-snug mb-3" dir="auto">
           {showTranslation ? testimonial.translation : testimonial.quote}
         </p>
         
         {/* Language toggle button */}
         <SafeHtmlButton
           onClick={() => setShowTranslation(!showTranslation)}
-          className="text-sm text-primary-accent hover:text-primary-hover transition-colors mb-4"
+          className="text-red-500 hover:text-red-700 text-sm font-medium mt-auto transition-colors"
         >
           {showTranslation ? 'Show Original' : 'Show Translation'}
         </SafeHtmlButton>
       </div>
-      
-      {/* Rating stars */}
-      <div className="flex justify-center gap-1 mb-4">
-        {[...Array(testimonial.rating)].map((_, i) => (
-          <Star key={i} className="w-4 h-4 text-yellow-400" fill="currentColor" />
-        ))}
-      </div>
-      
+
       {/* Author info */}
-      <div className="testimonial-author">
+      <div className="flex items-center gap-3 pt-3 border-t border-gray-100 mt-4">
         <AvatarImage 
           src={testimonial.avatar}
           alt={testimonial.name}
+          className="w-12 h-12 rounded-full overflow-hidden border border-red-100"
         />
         <div>
-          <div className="testimonial-name">{testimonial.name}</div>
-          <div className="testimonial-role">{testimonial.role}</div>
+          <div className="font-semibold text-gray-700 text-sm">{testimonial.name}</div>
+          <div className="text-xs text-gray-400">{testimonial.role}</div>
           <div className="text-xs text-gray-500">{testimonial.location}</div>
         </div>
       </div>

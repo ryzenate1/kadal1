@@ -90,20 +90,22 @@ function ChooseOnMapPage() {
   }, [initialAddress, initialLat, initialLng]);
 
   return (
-    <div className="h-screen w-full relative overflow-hidden bg-gray-100">
+    <div className="h-screen w-full relative overflow-hidden bg-slate-950">
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/50 pointer-events-none" />
+
       {/* Header with Search */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-white shadow-sm">
-        <div className="flex items-center gap-3">
+      <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-5">
+        <div className="flex items-center gap-3 bg-white/90 backdrop-blur-xl rounded-2xl border border-white/60 shadow-lg px-3 py-2">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 rounded-xl hover:bg-black/5 transition-colors"
           >
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
+            <ArrowLeft className="h-5 w-5 text-slate-700" />
           </button>
           <div className="flex-1">
             <LocationSearch
               onPlaceSelect={handleSearchSelect}
-              placeholder="Search an area or address"
+              placeholder="Search for a landmark or street"
               className="w-full"
               showRecentSearches={false}
             />
@@ -112,7 +114,7 @@ function ChooseOnMapPage() {
       </div>
 
       {/* Map */}
-      <div className="absolute top-20 bottom-0 left-0 right-0">
+      <div className="absolute inset-0">
         <GoogleMap
           center={mapCenter}
           zoom={16}
@@ -124,7 +126,7 @@ function ChooseOnMapPage() {
       </div>
 
       {/* Current Location Button */}
-      <div className="absolute top-32 right-4 z-10">
+      <div className="absolute top-24 right-4 z-10">
         <button
           onClick={async () => {
             try {
@@ -137,54 +139,58 @@ function ChooseOnMapPage() {
                     };
                     setMapCenter(newCenter);
                   },
-                  (error) => {
+                  () => {
                     toast.error('Unable to get current location');
                   }
                 );
               }
-            } catch (error) {
+            } catch {
               toast.error('Geolocation not supported');
             }
           }}
-          className="bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+          className="bg-white/90 backdrop-blur-xl p-3 rounded-2xl shadow-lg hover:shadow-xl transition-shadow"
         >
           <MapPin className="h-5 w-5 text-orange-500" />
         </button>
       </div>
 
       {/* Location Info Card */}
-      <div className="absolute bottom-20 left-4 right-4 bg-white rounded-xl shadow-lg p-4 z-10">
-        <p className="text-xs text-gray-500 mb-2">Place the pin at exact delivery location</p>
-        <div className="flex items-start gap-3">
-          <MapPin className="text-orange-500 mt-1 flex-shrink-0" size={20} />
-          <div className="flex-1 min-w-0">
-            {isLoadingAddress ? (
-              <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                <div className="h-3 bg-gray-200 rounded w-full"></div>
-              </div>
-            ) : (
-              <>
-                <p className="font-semibold text-sm text-gray-900 mb-1">
-                  {currentLocation.address.split(',')[0]}
-                </p>
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  {currentLocation.address}
-                </p>
-              </>
-            )}
+      <div className="absolute bottom-24 left-4 right-4 z-10">
+        <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-white/70 shadow-xl p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-2">Delivery Pin</p>
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-orange-100">
+              <MapPin className="text-orange-600" size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              {isLoadingAddress ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                  <div className="h-3 bg-slate-200 rounded w-full"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="font-semibold text-sm text-slate-900 mb-1">
+                    {currentLocation.address.split(',')[0]}
+                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {currentLocation.address}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Confirm Button */}
       <div className="absolute bottom-4 left-4 right-4 z-10">
-        <button 
+        <button
           onClick={handleConfirmProceed}
           disabled={isLoadingAddress || !currentLocation.address}
-          className="w-full bg-orange-500 text-white py-4 rounded-xl font-semibold text-sm shadow-md hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 text-white py-4 rounded-2xl font-semibold text-sm shadow-xl hover:from-orange-600 hover:to-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoadingAddress ? 'Loading address...' : 'Confirm & proceed'}
+          {isLoadingAddress ? 'Loading address...' : 'Confirm & continue'}
         </button>
       </div>
     </div>

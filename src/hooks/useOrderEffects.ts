@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 // Custom hook for playing sound effects
 export const useSound = (soundUrl: string) => {
@@ -56,56 +57,62 @@ export const useOrderTracking = (orderId: string | null) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchTrackingData = useCallback(async () => {
+    if (!orderId) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/orders/${orderId}/tracking`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tracking data: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setTrackingData(data);
+    } catch (err) {
+      console.error('Error fetching tracking data:', err);
+      setError('Failed to load tracking information. Please try again later.');
+      setTrackingData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
   useEffect(() => {
     // Only fetch if we have an orderId
     if (!orderId) return;
 
-    const fetchTrackingData = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Try to use the new demo endpoint first
-        const response = await fetch(`/api/orders/${orderId}/tracking-demo`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tracking data: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        setTrackingData(data);
-      } catch (err) {
-        console.error('Error fetching tracking data:', err);
-        setError('Failed to load tracking information. Please try again later.');
-        
-        // For demo purposes, set mock tracking data if API fails
-        setTrackingData({
-          orderId,
-          trackingNumber: `TRK${Math.floor(Math.random() * 100000)}`,
-          status: 'processing',
-          estimatedDelivery: new Date(Date.now() + 45 * 60000).toISOString(),
-          lastUpdate: new Date().toISOString(),
-          trackingHistory: [
-            {
-              status: 'Order Placed',
-              timestamp: new Date().toISOString(),
-              description: 'Your order has been received',
-              location: 'Online'
-            }
-          ]
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchTrackingData();
 
-    // Set up polling for real-time updates every 30 seconds
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const channel = supabase
+        .channel(`order-tracking-${orderId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'order_events',
+            filter: `order_id=eq.${orderId}`,
+          },
+          fetchTrackingData
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+
+    // Fallback polling when realtime is not available.
     const intervalId = setInterval(fetchTrackingData, 30000);
-    
+
     return () => clearInterval(intervalId);
-  }, [orderId]);
+  }, [orderId, fetchTrackingData]);
 
   return { trackingData, loading, error };
 };

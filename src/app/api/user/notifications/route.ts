@@ -1,159 +1,129 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-interface NotificationSettings {
-  orderUpdates: boolean;
-  promotions: boolean;
-  newsletters: boolean;
-  smsNotifications: boolean;
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  weeklyDeals: boolean;
-  newArrivals: boolean;
-  recommendations: boolean;
-  securityAlerts: boolean;
-}
+export const runtime = 'nodejs';
 
-// Define the notification settings keys as a type
-type NotificationSettingKey = keyof NotificationSettings;
-
-// Mock notification settings data
-const mockNotificationSettings: NotificationSettings = {
-  orderUpdates: true,
-  promotions: true,
-  newsletters: true,
-  smsNotifications: false,
-  emailNotifications: true,
-  pushNotifications: true,
-  weeklyDeals: true,
-  newArrivals: true,
-  recommendations: true,
-  securityAlerts: true
-} as const;
-
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    // In a real app, you would:
-    // 1. Verify the user's authentication
-    // 2. Fetch notification settings from the database using user ID
-    // 3. Return the user's notification preferences
+    const payload = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+      const row = await client.query(
+        `SELECT
+          notifications_enabled,
+          notif_order_updates,
+          notif_promotions,
+          notif_loyalty_updates,
+          notif_newsletter,
+          notif_sms,
+          notif_email,
+          notif_push
+         FROM profiles WHERE id = $1`,
+        [profile.id]
+      );
+      const settings = row.rows[0] || {};
+      const enabled = settings.notifications_enabled ?? true;
+      return {
+        enabled,
+        orderUpdates: settings.notif_order_updates ?? true,
+        promotions: settings.notif_promotions ?? true,
+        loyaltyUpdates: settings.notif_loyalty_updates ?? true,
+        newsletter: settings.notif_newsletter ?? false,
+        smsNotifications: settings.notif_sms ?? true,
+        emailNotifications: settings.notif_email ?? true,
+        pushNotifications: settings.notif_push ?? true,
+      };
+    });
 
-    // For now, return mock data
-    return NextResponse.json(mockNotificationSettings);
+    return NextResponse.json(payload);
   } catch (error) {
-    console.error('Error fetching notification settings:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch notification settings' },
-      { status: 500 }
-    );
+    console.error('Notifications GET failed:', error);
+    return NextResponse.json({ error: 'Failed to load notification settings' }, { status: 500 });
   }
 }
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH(req: NextRequest) {
   try {
-    const body = await request.json();
-    
-    // Validate the request body
-    const validSettings = [
-      'orderUpdates', 'promotions', 'newsletters', 'smsNotifications',
-      'emailNotifications', 'pushNotifications', 'weeklyDeals',
-      'newArrivals', 'recommendations', 'securityAlerts'
-    ];
+    const body = await req.json();
 
-    for (const [key, value] of Object.entries(body)) {
-      if (!validSettings.includes(key) || typeof value !== 'boolean') {
-        return NextResponse.json(
-          { error: `Invalid setting: ${key}` },
-          { status: 400 }
-        );
+    const payload = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+      const current = await client.query(
+        `SELECT
+          notif_order_updates,
+          notif_promotions,
+          notif_loyalty_updates,
+          notif_newsletter,
+          notif_sms,
+          notif_email,
+          notif_push
+         FROM profiles WHERE id = $1`,
+        [profile.id]
+      );
+
+      const row = current.rows[0] || {};
+      const next = {
+        orderUpdates: body.orderUpdates ?? row.notif_order_updates ?? true,
+        promotions: body.promotions ?? row.notif_promotions ?? true,
+        loyaltyUpdates: body.loyaltyUpdates ?? row.notif_loyalty_updates ?? true,
+        newsletter: body.newsletter ?? row.notif_newsletter ?? false,
+        smsNotifications: body.smsNotifications ?? row.notif_sms ?? true,
+        emailNotifications: body.emailNotifications ?? row.notif_email ?? true,
+        pushNotifications: body.pushNotifications ?? row.notif_push ?? true,
+      };
+
+      if (typeof body.enabled === 'boolean') {
+        next.orderUpdates = body.enabled;
+        next.promotions = body.enabled;
+        next.loyaltyUpdates = body.enabled;
+        next.smsNotifications = body.enabled;
+        next.emailNotifications = body.enabled;
+        next.pushNotifications = body.enabled;
       }
-    }
 
-    // Handle the "enabled" field which toggles all notifications
-    if ('enabled' in body) {
-      const enabled = Boolean(body.enabled);
-      const updatedSettings = Object.fromEntries(
-        Object.entries(mockNotificationSettings).map(([key]) => [key, enabled])
-      ) as unknown as NotificationSettings;
-      
-      // In a real app, you would update the database here
-      // For now, update our mock data
-      Object.assign(mockNotificationSettings, updatedSettings);
-      
-      return NextResponse.json({ 
-        ...updatedSettings,
-        notificationsEnabled: enabled 
-      });
-    }
+      const enabled = [
+        next.orderUpdates,
+        next.promotions,
+        next.loyaltyUpdates,
+        next.smsNotifications,
+        next.emailNotifications,
+        next.pushNotifications,
+      ].some(Boolean);
 
-    // In a real app, you would:
-    // 1. Verify the user's authentication
-    // 2. Update the notification settings in the database
-    // 3. Return the updated settings
+      await client.query(
+        `UPDATE profiles
+         SET
+          notifications_enabled = $2,
+          notif_order_updates = $3,
+          notif_promotions = $4,
+          notif_loyalty_updates = $5,
+          notif_newsletter = $6,
+          notif_sms = $7,
+          notif_email = $8,
+          notif_push = $9,
+          updated_at = NOW()
+         WHERE id = $1`,
+        [
+          profile.id,
+          enabled,
+          next.orderUpdates,
+          next.promotions,
+          next.loyaltyUpdates,
+          next.newsletter,
+          next.smsNotifications,
+          next.emailNotifications,
+          next.pushNotifications,
+        ]
+      );
+      return {
+        enabled,
+        ...next,
+      };
+    });
 
-    // For now, merge with mock data and return
-    const updatedSettings = { ...mockNotificationSettings, ...body };
-    
-    return NextResponse.json(updatedSettings);
+    return NextResponse.json(payload);
   } catch (error) {
-    console.error('Error updating notification settings:', error);
-    return NextResponse.json(
-      { error: 'Failed to update notification settings' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    
-    // Validate the request body
-    const validSettings = [
-      'orderUpdates', 'promotions', 'newsletters', 'smsNotifications',
-      'emailNotifications', 'pushNotifications', 'weeklyDeals',
-      'newArrivals', 'recommendations', 'securityAlerts'
-    ];
-
-    for (const [key, value] of Object.entries(body)) {
-      if (!validSettings.includes(key) || typeof value !== 'boolean') {
-        return NextResponse.json(
-          { error: `Invalid setting: ${key}` },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Handle the "enabled" field which toggles all notifications
-    if ('enabled' in body) {
-      const enabled = Boolean(body.enabled);
-      const updatedSettings = Object.fromEntries(
-        Object.entries(mockNotificationSettings).map(([key]) => [key, enabled])
-      ) as unknown as NotificationSettings;
-      
-      // In a real app, you would update the database here
-      // For now, update our mock data
-      Object.assign(mockNotificationSettings, updatedSettings);
-      
-      return NextResponse.json({ 
-        ...updatedSettings,
-        notificationsEnabled: enabled 
-      });
-    }
-
-    // In a real app, you would:
-    // 1. Verify the user's authentication
-    // 2. Update the notification settings in the database
-    // 3. Return the updated settings
-
-    // For now, merge with mock data and return
-    const updatedSettings = { ...mockNotificationSettings, ...body };
-    
-    return NextResponse.json(updatedSettings);
-  } catch (error) {
-    console.error('Error updating notification settings:', error);
-    return NextResponse.json(
-      { error: 'Failed to update notification settings' },
-      { status: 500 }
-    );
+    console.error('Notifications PATCH failed:', error);
+    return NextResponse.json({ error: 'Failed to update notification settings' }, { status: 500 });
   }
 }

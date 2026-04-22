@@ -1,650 +1,437 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { 
-  CreditCard, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
   ArrowLeft,
   Check,
-  X,
-  Star,
-  Smartphone,
-  Building,
-  Shield
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+  CreditCard,
+  Landmark,
+  Lock,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  Wallet,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { fetchJson } from '@/lib/apiClient';
 
-interface PaymentMethod {
+type PaymentType = 'card' | 'upi' | 'netbanking';
+
+type PaymentMethod = {
   id: string;
-  type: 'card' | 'upi' | 'netbanking';
-  cardNumber?: string; // Last 4 digits only
-  cardBrand?: string; // Visa, Mastercard, etc.
+  type: PaymentType;
+  nickname: string;
+  isDefault: boolean;
+  cardNumber?: string;
+  cardBrand?: string;
   cardHolderName?: string;
   expiryDate?: string;
   upiId?: string;
   bankName?: string;
-  accountNumber?: string; // Last 4 digits only
-  isDefault: boolean;
-  nickname: string;
-}
+  accountNumber?: string;
+};
 
-const paymentTypes = [
-  { value: 'card', label: 'Credit/Debit Card', icon: CreditCard },
-  { value: 'upi', label: 'UPI', icon: Smartphone },
-  { value: 'netbanking', label: 'Net Banking', icon: Building }
+const TYPE_OPTIONS: Array<{ value: PaymentType; label: string }> = [
+  { value: 'card', label: 'Card' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'netbanking', label: 'Bank' },
 ];
 
-const cardBrands = ['Visa', 'Mastercard', 'RuPay', 'American Express'];
+const EMPTY_FORM = {
+  nickname: '',
+  cardNumber: '',
+  cardBrand: '',
+  cardHolderName: '',
+  expiryDate: '',
+  upiId: '',
+  bankName: '',
+  accountNumber: '',
+  isDefault: false,
+};
 
 export default function PaymentMethodsPage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    type: "card" as 'card' | 'upi' | 'netbanking',
-    cardNumber: "",
-    cardHolderName: "",
-    expiryDate: "",
-    cardBrand: "",
-    upiId: "",
-    bankName: "",
-    accountNumber: "",
-    nickname: "",
-    isDefault: false
-  });
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [type, setType] = useState<PaymentType>('card');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/auth/login?redirect=/account/payments');
-    }
-  }, [loading, isAuthenticated, router]);
+  const editingMethod = useMemo(
+    () => methods.find((method) => method.id === editingId) || null,
+    [methods, editingId]
+  );
 
-  // Fetch payment methods
-  const fetchPaymentMethods = async () => {
+  const loadMethods = async () => {
+    setLoading(true);
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/user/payment-methods');
-      if (response.ok) {
-        const methodsData = await response.json();
-        setPaymentMethods(methodsData);
-      } else {
-        throw new Error('Failed to fetch payment methods');
-      }
+      const data = await fetchJson<PaymentMethod[]>('/api/user/payment-methods');
+      setMethods(data);
     } catch (error) {
-      console.error('Error fetching payment methods:', error);
-      // Mock data for development
-      const mockMethods: PaymentMethod[] = [
-        {
-          id: "pm_001",
-          type: "card",
-          cardNumber: "4567",
-          cardBrand: "Visa",
-          cardHolderName: "Test User",
-          expiryDate: "12/28",
-          nickname: "Primary Card",
-          isDefault: true
-        },
-        {
-          id: "pm_002",
-          type: "upi",
-          upiId: "testuser@paytm",
-          nickname: "Paytm UPI",
-          isDefault: false
-        }
-      ];
-      setPaymentMethods(mockMethods);
+      toast.error(error instanceof Error ? error.message : 'Failed to load payment methods');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchPaymentMethods();
-    }
-  }, [isAuthenticated]);
+    void loadMethods();
+  }, []);
 
-  // Reset form
   const resetForm = () => {
-    setFormData({
-      type: "card",
-      cardNumber: "",
-      cardHolderName: "",
-      expiryDate: "",
-      cardBrand: "",
-      upiId: "",
-      bankName: "",
-      accountNumber: "",
-      nickname: "",
-      isDefault: false
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setType('card');
+    setShowForm(false);
+  };
+
+  const openCreate = () => {
+    setForm({ ...EMPTY_FORM, isDefault: methods.length === 0 });
+    setEditingId(null);
+    setType('card');
+    setShowForm(true);
+  };
+
+  const openEdit = (method: PaymentMethod) => {
+    setEditingId(method.id);
+    setType(method.type);
+    setForm({
+      nickname: method.nickname || '',
+      cardNumber: method.cardNumber || '',
+      cardBrand: method.cardBrand || '',
+      cardHolderName: method.cardHolderName || '',
+      expiryDate: method.expiryDate || '',
+      upiId: method.upiId || '',
+      bankName: method.bankName || '',
+      accountNumber: method.accountNumber || '',
+      isDefault: method.isDefault,
     });
-    setShowAddForm(false);
-    setEditingMethod(null);
+    setShowForm(true);
   };
 
-  // Handle form input changes
-  const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const validate = () => {
+    if (!form.nickname.trim()) return 'Nickname is required';
+    if (type === 'card') {
+      if (form.cardNumber.replace(/\D/g, '').length < 4) return 'Enter at least the last 4 digits of the card';
+      if (!form.cardBrand.trim()) return 'Card brand is required';
+      if (!form.cardHolderName.trim()) return 'Card holder name is required';
+      if (!form.expiryDate.trim()) return 'Expiry date is required';
+    }
+    if (type === 'upi' && !form.upiId.includes('@')) return 'Enter a valid UPI ID';
+    if (type === 'netbanking') {
+      if (!form.bankName.trim()) return 'Bank name is required';
+      if (form.accountNumber.replace(/\D/g, '').length < 4) return 'Enter at least the last 4 digits of the account';
+    }
+    return null;
   };
 
-  // Format card number for display
-  const formatCardNumber = (number: string) => {
-    return number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
-  };
-
-  // Start editing payment method
-  const startEdit = (method: PaymentMethod) => {
-    setFormData({
-      type: method.type,
-      cardNumber: method.cardNumber || "",
-      cardHolderName: method.cardHolderName || "",
-      expiryDate: method.expiryDate || "",
-      cardBrand: method.cardBrand || "",
-      upiId: method.upiId || "",
-      bankName: method.bankName || "",
-      accountNumber: method.accountNumber || "",
-      nickname: method.nickname,
-      isDefault: method.isDefault
-    });
-    setEditingMethod(method);
-    setShowAddForm(true);
-  };
-
-  // Validate form
-  const validateForm = () => {
-    if (!formData.nickname.trim()) {
-      toast.error("Nickname is required");
-      return false;
+  const handleSave = async () => {
+    const error = validate();
+    if (error) {
+      toast.error(error);
+      return;
     }
 
-    if (formData.type === 'card') {
-      if (!formData.cardNumber.trim() || formData.cardNumber.replace(/\s/g, '').length < 16) {
-        toast.error("Please enter a valid 16-digit card number");
-        return false;
-      }
-      if (!formData.cardHolderName.trim()) {
-        toast.error("Card holder name is required");
-        return false;
-      }
-      if (!formData.expiryDate.trim() || !/^\d{2}\/\d{2}$/.test(formData.expiryDate)) {
-        toast.error("Please enter expiry date in MM/YY format");
-        return false;
-      }
-      if (!formData.cardBrand) {
-        toast.error("Please select card brand");
-        return false;
-      }
-    } else if (formData.type === 'upi') {
-      if (!formData.upiId.trim() || !formData.upiId.includes('@')) {
-        toast.error("Please enter a valid UPI ID");
-        return false;
-      }
-    } else if (formData.type === 'netbanking') {
-      if (!formData.bankName.trim()) {
-        toast.error("Bank name is required");
-        return false;
-      }
-      if (!formData.accountNumber.trim()) {
-        toast.error("Account number is required");
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  // Save payment method
-  const handleSaveMethod = async () => {
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
+    setSaving(true);
     try {
-      const url = editingMethod 
-        ? `/api/user/payment-methods/${editingMethod.id}`
-        : '/api/user/payment-methods';
-      
-      const method = editingMethod ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-      });
+      const payload = {
+        type,
+        nickname: form.nickname.trim(),
+        cardNumber: form.cardNumber,
+        cardBrand: form.cardBrand.trim(),
+        cardHolderName: form.cardHolderName.trim(),
+        expiryDate: form.expiryDate.trim(),
+        upiId: form.upiId.trim(),
+        bankName: form.bankName.trim(),
+        accountNumber: form.accountNumber,
+        isDefault: form.isDefault,
+      };
 
-      if (response.ok) {
-        const savedMethod = await response.json();
-        
-        if (editingMethod) {
-          setPaymentMethods(prev => prev.map(pm => 
-            pm.id === editingMethod.id ? savedMethod : pm
-          ));
-          toast.success("Payment method updated successfully!");
-        } else {
-          setPaymentMethods(prev => [...prev, savedMethod]);
-          toast.success("Payment method added successfully!");
-        }
-        
-        resetForm();
-        fetchPaymentMethods(); // Refresh to ensure consistency
+      if (editingId) {
+        await fetchJson(`/api/user/payment-methods/${editingId}`, {
+          method: 'PUT',
+          body: payload,
+        });
+        toast.success('Payment method updated');
       } else {
-        throw new Error('Failed to save payment method');
+        await fetchJson('/api/user/payment-methods', {
+          method: 'POST',
+          body: payload,
+        });
+        toast.success('Payment method saved');
       }
-    } catch (error) {
-      console.error('Save payment method error:', error);
-      toast.error("Failed to save payment method");
+
+      await loadMethods();
+      resetForm();
+    } catch (requestError) {
+      toast.error(requestError instanceof Error ? requestError.message : 'Failed to save payment method');
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  // Delete payment method
-  const handleDeleteMethod = async (methodId: string) => {
-    if (!confirm("Are you sure you want to delete this payment method?")) return;
-
+  const handleDelete = async (methodId: string) => {
+    if (!confirm('Delete this payment method?')) return;
     try {
-      const response = await fetch(`/api/user/payment-methods/${methodId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        setPaymentMethods(prev => prev.filter(pm => pm.id !== methodId));
-        toast.success("Payment method deleted successfully!");
-      } else {
-        throw new Error('Failed to delete payment method');
-      }
+      await fetchJson(`/api/user/payment-methods/${methodId}`, { method: 'DELETE' });
+      setMethods((prev) => prev.filter((method) => method.id !== methodId));
+      toast.success('Payment method deleted');
     } catch (error) {
-      console.error('Delete payment method error:', error);
-      toast.error("Failed to delete payment method");
+      toast.error(error instanceof Error ? error.message : 'Failed to delete payment method');
     }
   };
 
-  // Set default payment method
   const handleSetDefault = async (methodId: string) => {
     try {
-      const response = await fetch(`/api/user/payment-methods/${methodId}/default`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        setPaymentMethods(prev => prev.map(pm => ({
-          ...pm,
-          isDefault: pm.id === methodId
-        })));
-        toast.success("Default payment method updated!");
-      } else {
-        throw new Error('Failed to set default payment method');
-      }
+      await fetchJson(`/api/user/payment-methods/${methodId}/default`, { method: 'POST' });
+      setMethods((prev) =>
+        prev.map((method) => ({ ...method, isDefault: method.id === methodId }))
+      );
+      toast.success('Default payment method updated');
     } catch (error) {
-      console.error('Set default error:', error);
-      toast.error("Failed to set default payment method");
+      toast.error(error instanceof Error ? error.message : 'Failed to update default payment method');
     }
   };
 
-  if (loading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-      </div>
-    );
-  }
+  const renderMethodIcon = (method: PaymentMethod) => {
+    if (method.type === 'upi') return <Wallet className="h-5 w-5 text-violet-600" />;
+    if (method.type === 'netbanking') return <Landmark className="h-5 w-5 text-violet-600" />;
+    return <CreditCard className="h-5 w-5 text-violet-600" />;
+  };
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  const renderMethodValue = (method: PaymentMethod) => {
+    if (method.type === 'upi') return method.upiId;
+    if (method.type === 'netbanking') return method.bankName ? `${method.bankName} ••••${method.accountNumber || ''}` : `••••${method.accountNumber || ''}`;
+    return `${method.cardBrand || 'Card'} ••••${method.cardNumber || ''}`;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
+    <div className="min-h-screen bg-gradient-to-br from-violet-50/60 via-white to-indigo-50/40">
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <button
               onClick={() => router.back()}
-              className="p-2"
+              className="p-2 rounded-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-sm hover:bg-white"
             >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Payment Methods</h1>
-              <p className="text-gray-600">Manage your saved payment methods</p>
+              <p className="text-sm text-gray-500">Save masked cards, UPI IDs, and bank shortcuts for faster Razorpay checkout.</p>
             </div>
           </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            className="bg-red-600 hover:bg-red-700 flex items-center space-x-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Method</span>
-          </Button>
+          {!showForm && (
+            <Button onClick={openCreate} className="rounded-2xl bg-violet-600 hover:bg-violet-700">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add
+            </Button>
+          )}
         </div>
 
-        {/* Security Notice */}
-        <Card className="mb-6 border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-blue-900">Your payment information is secure</h3>
-                <p className="text-sm text-blue-800">
-                  We use industry-standard encryption to protect your payment details. 
-                  Card numbers are masked and only the last 4 digits are stored.
-                </p>
+        <div className="mb-5 rounded-3xl border border-green-100 bg-white/90 p-5 shadow-lg shadow-black/5">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-green-50 flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-gray-900">Safe Razorpay-certified checkout messaging</p>
+              <p className="text-sm text-gray-600">
+                Your actual payment is processed in the live Razorpay checkout. We only save masked references here to help customers reuse trusted methods with confidence.
+              </p>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <span className="rounded-full bg-green-50 border border-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                  Safe and encrypted
+                </span>
+                <span className="rounded-full bg-green-50 border border-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                  Verified with Razorpay flow
+                </span>
+                <span className="rounded-full bg-green-50 border border-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                  No raw card storage
+                </span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Add/Edit Payment Method Form */}
-        {showAddForm && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>
-                {editingMethod ? 'Edit Payment Method' : 'Add New Payment Method'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Payment Type */}
-              <div className="space-y-2">
-                <Label htmlFor="type">Payment Type</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(value) => handleInputChange('type', value)}
-                  disabled={isSubmitting}
+        {showForm && (
+          <div className="mb-5 rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-black/5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="font-bold text-gray-900">{editingMethod ? 'Edit payment method' : 'Add payment method'}</h2>
+              <Button variant="outline" onClick={resetForm} className="rounded-xl">Cancel</Button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              {TYPE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setType(option.value)}
+                  className={`flex-1 rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+                    type === option.value
+                      ? 'border-violet-400 bg-violet-50 text-violet-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <div className="flex items-center space-x-2">
-                          <type.icon className="h-4 w-4" />
-                          <span>{type.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  {option.label}
+                </button>
+              ))}
+            </div>
 
-              {/* Nickname */}
-              <div className="space-y-2">
-                <Label htmlFor="nickname">Nickname</Label>
-                <Input
-                  id="nickname"
-                  value={formData.nickname}
-                  onChange={(e) => handleInputChange('nickname', e.target.value)}
-                  placeholder="e.g., Primary Card, Work UPI"
-                  disabled={isSubmitting}
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                value={form.nickname}
+                onChange={(e) => setForm((prev) => ({ ...prev, nickname: e.target.value }))}
+                placeholder="Nickname (e.g. Work Visa, Personal UPI)"
+              />
 
-              {/* Card Fields */}
-              {formData.type === 'card' && (
+              {type === 'card' && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cardNumber">Card Number</Label>
-                      <Input
-                        id="cardNumber"
-                        value={formatCardNumber(formData.cardNumber)}
-                        onChange={(e) => handleInputChange('cardNumber', e.target.value.replace(/\s/g, ''))}
-                        placeholder="1234 5678 9012 3456"
-                        maxLength={19}
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cardBrand">Card Brand</Label>
-                      <Select
-                        value={formData.cardBrand}
-                        onValueChange={(value) => handleInputChange('cardBrand', value)}
-                        disabled={isSubmitting}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select brand" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cardBrands.map((brand) => (
-                            <SelectItem key={brand} value={brand}>
-                              {brand}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cardHolderName">Card Holder Name</Label>
-                      <Input
-                        id="cardHolderName"
-                        value={formData.cardHolderName}
-                        onChange={(e) => handleInputChange('cardHolderName', e.target.value)}
-                        placeholder="Name on card"
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="expiryDate">Expiry Date</Label>
-                      <Input
-                        id="expiryDate"
-                        value={formData.expiryDate}
-                        onChange={(e) => handleInputChange('expiryDate', e.target.value)}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    value={form.cardBrand}
+                    onChange={(e) => setForm((prev) => ({ ...prev, cardBrand: e.target.value }))}
+                    placeholder="Card brand (Visa, Mastercard)"
+                  />
+                  <Input
+                    value={form.cardHolderName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, cardHolderName: e.target.value }))}
+                    placeholder="Card holder name"
+                  />
+                  <Input
+                    value={form.cardNumber}
+                    onChange={(e) => setForm((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 16) }))}
+                    placeholder="Card number or last 4 digits"
+                  />
+                  <Input
+                    value={form.expiryDate}
+                    onChange={(e) => setForm((prev) => ({ ...prev, expiryDate: e.target.value.slice(0, 5) }))}
+                    placeholder="Expiry (MM/YY)"
+                  />
                 </>
               )}
 
-              {/* UPI Fields */}
-              {formData.type === 'upi' && (
-                <div className="space-y-2">
-                  <Label htmlFor="upiId">UPI ID</Label>
-                  <Input
-                    id="upiId"
-                    value={formData.upiId}
-                    onChange={(e) => handleInputChange('upiId', e.target.value)}
-                    placeholder="yourname@paytm"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              )}
-
-              {/* Net Banking Fields */}
-              {formData.type === 'netbanking' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bankName">Bank Name</Label>
-                    <Input
-                      id="bankName"
-                      value={formData.bankName}
-                      onChange={(e) => handleInputChange('bankName', e.target.value)}
-                      placeholder="e.g., State Bank of India"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="accountNumber">Account Number</Label>
-                    <Input
-                      id="accountNumber"
-                      value={formData.accountNumber}
-                      onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                      placeholder="Account number"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Default Checkbox */}
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isDefault"
-                  checked={formData.isDefault}
-                  onChange={(e) => handleInputChange('isDefault', e.target.checked)}
-                  disabled={isSubmitting}
-                  className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+              {type === 'upi' && (
+                <Input
+                  value={form.upiId}
+                  onChange={(e) => setForm((prev) => ({ ...prev, upiId: e.target.value }))}
+                  placeholder="UPI ID (name@bank)"
                 />
-                <Label htmlFor="isDefault">Set as default payment method</Label>
-              </div>
+              )}
 
-              {/* Action Buttons */}
-              <div className="flex space-x-3 pt-4 border-t">
-                <Button
-                  onClick={handleSaveMethod}
-                  disabled={isSubmitting}
-                  className="flex-1 bg-red-600 hover:bg-red-700"
-                >
-                  {isSubmitting ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  ) : (
-                    <Check className="h-4 w-4 mr-2" />
-                  )}
-                  {editingMethod ? 'Update' : 'Save'} Method
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={resetForm}
-                  disabled={isSubmitting}
-                  className="flex-1"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              {type === 'netbanking' && (
+                <>
+                  <Input
+                    value={form.bankName}
+                    onChange={(e) => setForm((prev) => ({ ...prev, bankName: e.target.value }))}
+                    placeholder="Bank name"
+                  />
+                  <Input
+                    value={form.accountNumber}
+                    onChange={(e) => setForm((prev) => ({ ...prev, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 18) }))}
+                    placeholder="Account number or last 4 digits"
+                  />
+                </>
+              )}
+            </div>
 
-        {/* Payment Methods List */}
-        {paymentMethods.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No payment methods saved</h3>
-              <p className="text-gray-600 mb-4">Add your first payment method for faster checkout</p>
-              <Button
-                onClick={() => setShowAddForm(true)}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Add Payment Method
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {paymentMethods.map((method) => {
-              const MethodIcon = paymentTypes.find(type => type.value === method.type)?.icon || CreditCard;
-              
-              return (
-                <Card key={method.id} className={`relative ${method.isDefault ? 'ring-2 ring-red-500' : ''}`}>
-                  <CardContent className="p-4">
-                    {/* Default Badge */}
-                    {method.isDefault && (
-                      <Badge className="absolute top-2 right-2 bg-red-100 text-red-800">
-                        <Star className="h-3 w-3 mr-1" />
-                        Default
-                      </Badge>
-                    )}
+            <label className="flex items-center gap-2 mt-4 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={form.isDefault}
+                onChange={(e) => setForm((prev) => ({ ...prev, isDefault: e.target.checked }))}
+                className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+              />
+              Set as default payment method
+            </label>
 
-                    {/* Method Icon & Type */}
-                    <div className="flex items-center space-x-3 mb-3">
-                      <div className="bg-red-100 p-2 rounded-lg">
-                        <MethodIcon className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{method.nickname}</h3>
-                        <p className="text-sm text-gray-600 capitalize">{method.type}</p>
-                      </div>
-                    </div>
-
-                    {/* Method Details */}
-                    <div className="text-sm text-gray-700 mb-4">
-                      {method.type === 'card' && (
-                        <>
-                          <p>•••• •••• •••• {method.cardNumber}</p>
-                          <p>{method.cardBrand} • Expires {method.expiryDate}</p>
-                          <p>{method.cardHolderName}</p>
-                        </>
-                      )}
-                      {method.type === 'upi' && (
-                        <p>{method.upiId}</p>
-                      )}
-                      {method.type === 'netbanking' && (
-                        <>
-                          <p>{method.bankName}</p>
-                          <p>•••• •••• •••• {method.accountNumber}</p>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => startEdit(method)}
-                        className="flex-1"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      
-                      {!method.isDefault && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSetDefault(method.id)}
-                          className="flex-1"
-                        >
-                          <Star className="h-3 w-3 mr-1" />
-                          Set Default
-                        </Button>
-                      )}
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteMethod(method.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            <Button onClick={handleSave} disabled={saving} className="mt-4 rounded-2xl bg-violet-600 hover:bg-violet-700">
+              {saving ? 'Saving...' : editingMethod ? 'Update method' : 'Save method'}
+            </Button>
           </div>
         )}
+
+        {loading ? (
+          <div className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-gray-500 shadow-lg shadow-black/5">
+            Loading payment methods...
+          </div>
+        ) : methods.length === 0 ? (
+          <div className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center shadow-lg shadow-black/5">
+            <div className="w-16 h-16 rounded-3xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+              <CreditCard className="h-8 w-8 text-violet-600" />
+            </div>
+            <h2 className="font-bold text-gray-900 mb-2">No saved payment methods yet</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Add a masked card, UPI, or bank shortcut so returning customers feel safer using your live Razorpay checkout.
+            </p>
+            <Button onClick={openCreate} className="rounded-2xl bg-violet-600 hover:bg-violet-700">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add first method
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {methods.map((method) => (
+              <div key={method.id} className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-black/5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                      {renderMethodIcon(method)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-gray-900">{method.nickname}</p>
+                        {method.isDefault && (
+                          <span className="rounded-full bg-green-50 border border-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-0.5">{renderMethodValue(method)}</p>
+                      <p className="text-xs text-gray-400 mt-1">Saved for faster secure Razorpay checkout</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Button variant="outline" onClick={() => openEdit(method)} className="rounded-xl">Edit</Button>
+                  {!method.isDefault && (
+                    <Button variant="outline" onClick={() => handleSetDefault(method.id)} className="rounded-xl">
+                      <Check className="h-4 w-4 mr-1.5" />
+                      Set default
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDelete(method.id)}
+                    className="rounded-xl text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5 rounded-3xl border border-violet-100 bg-violet-50/60 p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center flex-shrink-0">
+              <Lock className="h-5 w-5 text-violet-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Customer trust copy for live payments</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Safe, encrypted and processed through Razorpay. Customers can save trusted payment references here, then complete the actual charge inside the live certified Razorpay payment flow during checkout.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

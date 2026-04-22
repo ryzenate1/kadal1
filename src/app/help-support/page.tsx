@@ -18,7 +18,7 @@ export default function HelpSupportPage() {
     },
     {
       question: "What payment methods do you accept?",
-      answer: "We accept all major credit/debit cards, UPI, Net Banking, and cash on delivery."
+      answer: "We use the live Razorpay checkout gateway for major credit and debit cards, UPI, net banking, wallets, and other methods Razorpay makes available."
     },
     {
       question: "How do I apply a coupon code?",

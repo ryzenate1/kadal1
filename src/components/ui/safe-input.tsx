@@ -7,7 +7,7 @@ import * as React from "react";
  * caused by browser extensions that inject attributes like fdprocessedid
  */
 
-interface SafeInputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+type SafeInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 const SafeInput = React.forwardRef<HTMLInputElement, SafeInputProps>(
   ({ ...props }, ref) => {

@@ -1,45 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-interface RouteParams {
-  params: Promise<{
-    addressId: string;
-  }>;
+export const runtime = 'nodejs';
+
+function isAuthenticatedRequest(req: NextRequest) {
+  const reqUser = getRequestUser(req);
+  return Boolean(reqUser.id || reqUser.authUserId || reqUser.email || reqUser.accessToken);
 }
 
 export async function PATCH(
-  request: NextRequest,
-  context: RouteParams
+  req: NextRequest,
+  { params }: { params: Promise<{ addressId: string }> }
 ) {
   try {
-    const params = await context.params;
-    const { addressId } = params;
-
-    if (!addressId) {
-      return NextResponse.json(
-        { error: 'Address ID is required' },
-        { status: 400 }
-      );
+    if (!isAuthenticatedRequest(req)) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // In a real app, you would:
-    // 1. Verify the user's authentication
-    // 2. Check if the address belongs to the authenticated user
-    // 3. Update all other addresses to set isDefault: false
-    // 4. Update the specified address to set isDefault: true
+    const { addressId } = await params;
 
-    // For now, simulate a successful default address update
-    await new Promise(resolve => setTimeout(resolve, 300));
+    const payload = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
 
-    return NextResponse.json({
-      success: true,
-      addressId,
-      message: 'Default address updated successfully'
+      await client.query(`UPDATE addresses SET is_default = FALSE WHERE profile_id = $1`, [profile.id]);
+
+      const updated = await client.query(
+        `UPDATE addresses
+         SET is_default = TRUE, updated_at = NOW()
+         WHERE id = $1 AND profile_id = $2
+         RETURNING id`,
+        [addressId, profile.id]
+      );
+
+      if (!updated.rows[0]) return null;
+      return { success: true, addressId };
     });
+
+    if (!payload) {
+      return NextResponse.json({ error: 'Address not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(payload);
   } catch (error) {
-    console.error('Error setting default address:', error);
-    return NextResponse.json(
-      { error: 'Failed to set default address' },
-      { status: 500 }
-    );
+    console.error('Set default address failed:', error);
+    return NextResponse.json({ error: 'Failed to set default address' }, { status: 500 });
   }
 }

@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { MapPin, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useLocation } from '@/context/LocationContext';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
+import { LocationSheet } from '@/components/location/LocationSheet';
 
 // Dynamically import the EnhancedLocationPicker with no SSR
 const EnhancedLocationPicker = dynamic(
@@ -75,18 +75,18 @@ export function LocationSelector({
         )} />
       </Button>
 
-      <Dialog open={isPickerOpen} onOpenChange={setIsPickerOpen}>
-        <DialogContent className={cn(
-          "p-0 overflow-hidden",
-          variant === 'desktop' ? "sm:max-w-[600px]" : "max-w-full h-screen sm:h-auto sm:max-h-[90vh]"
-        )}>
-          <EnhancedLocationPicker 
-            isOpen={isPickerOpen}
-            onClose={() => setIsPickerOpen(false)}
-            isMobile={variant === 'mobile'}
-          />
-        </DialogContent>
-      </Dialog>
+      <LocationSheet
+        open={isPickerOpen}
+        onOpenChange={setIsPickerOpen}
+        title="Choose delivery location"
+        className={cn(variant === 'mobile' ? "sm:w-[680px]" : undefined)}
+      >
+        <EnhancedLocationPicker
+          isOpen={isPickerOpen}
+          onClose={() => setIsPickerOpen(false)}
+          isMobile={variant === 'mobile'}
+        />
+      </LocationSheet>
     </>
   );
 }

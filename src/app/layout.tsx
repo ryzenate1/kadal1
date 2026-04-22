@@ -2,12 +2,12 @@ import "@/app/globals.css";
 import "@/styles/fixes.css"; 
 import "@/styles/mobile-fixes.css";
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import ClientBody from "./ClientBody";
 import RootLayout from "@/components/location/layout/RootLayout";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { LocationProvider } from "@/context/LocationContext";
-import SmoothScrollProvider from "@/components/providers/SmoothScrollProvider-new";
 import ConditionalSmoothScrollProvider from "@/components/providers/ConditionalSmoothScrollProvider";
 import { NetworkStatus } from "@/components/ui/network-status";
 import { ToastProvider } from "@/components/ui/toast-notification";
@@ -53,24 +53,26 @@ export default function Layout({
     <html lang="en" suppressHydrationWarning>
       <head></head>
       <body>
-        <ClientBody>
-          <ConditionalSmoothScrollProvider>
-            <ToastProvider>
-              <AuthProvider>
-                <CartProvider>
-                  <LocationProvider>
-                    <UiProvider>
-                      <RootLayout>
-                        {children}
-                        <NetworkStatus />
-                      </RootLayout>
-                    </UiProvider>
-                  </LocationProvider>
-                </CartProvider>
-              </AuthProvider>
-            </ToastProvider>
-          </ConditionalSmoothScrollProvider>
-        </ClientBody>
+        <ClerkProvider>
+          <ClientBody>
+            <ConditionalSmoothScrollProvider>
+              <ToastProvider>
+                <AuthProvider>
+                  <CartProvider>
+                    <LocationProvider>
+                      <UiProvider>
+                        <RootLayout>
+                          {children}
+                          <NetworkStatus />
+                        </RootLayout>
+                      </UiProvider>
+                    </LocationProvider>
+                  </CartProvider>
+                </AuthProvider>
+              </ToastProvider>
+            </ConditionalSmoothScrollProvider>
+          </ClientBody>
+        </ClerkProvider>
       </body>
     </html>
   );

@@ -1,86 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserIdFromAuth } from '@/lib/apiUtils';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-// Server API URL
-const SERVER_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
-
-interface RouteParams {
-  params: Promise<{
-    orderId: string;
-  }>;
-}
+export const runtime = 'nodejs';
 
 export async function PATCH(
-  request: NextRequest,
-  context: RouteParams
+  req: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const params = await context.params;
-    const { orderId } = params;
-    const userId = await getUserIdFromAuth(request);
+    const { orderId } = await params;
+    let body: { reason?: string; cancelNote?: string } = {};
+    try { body = await req.json(); } catch { /* no body is fine */ }
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
+    const reason = body.reason || 'No reason provided';
+    const cancelNote = body.cancelNote || '';
 
-    if (!orderId) {
-      return NextResponse.json(
-        { error: 'Order ID is required' },
-        { status: 400 }
+    const result = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+
+      const updated = await client.query(
+        `UPDATE orders
+         SET status = 'cancelled', updated_at = NOW(),
+             cancel_reason = $3, cancel_note = $4
+         WHERE (id::text = $1 OR order_number = $1) AND profile_id = $2
+         RETURNING id, order_number`,
+        [orderId, profile.id, reason, cancelNote]
       );
-    }
 
-    const requestData = await request.json();
-    const token = request.headers.get('Authorization') || `Bearer admin-test-token`;
-    
-    // Call the real backend to cancel the order
-    const response = await fetch(`${SERVER_API_URL}/orders/${orderId}/cancel`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token
-      },
-      body: JSON.stringify({
-        reason: requestData.reason || 'Cancelled by customer'
-      })
+      if (!updated.rows[0]) {
+        return null;
+      }
+
+      await client.query(
+        `INSERT INTO order_events (order_id, status, description, location)
+         VALUES ($1, 'cancelled', $2, 'App')
+         ON CONFLICT DO NOTHING`,
+        [updated.rows[0].id, `Order cancelled: ${reason}${cancelNote ? ` - ${cancelNote}` : ''}`]
+      );
+
+      return updated.rows[0];
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `Error: ${response.statusText}` }));
-      throw new Error(errorData.message || `Failed to cancel order: ${response.status}`);
+    if (!result) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const result = await response.json();
-    
-    // Log the order cancellation in admin logs
-    await fetch(`${SERVER_API_URL}/admin/logs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token
-      },
-      body: JSON.stringify({
-        action: 'cancel_order',
-        userId,
-        orderId,
-        details: `Order cancelled. Reason: ${requestData.reason || 'Not provided'}`
-      })
-    }).catch(err => console.error('Failed to log order cancellation:', err));
-
-    return NextResponse.json({
-      success: true,
-      orderId,
-      status: 'cancelled',
-      message: 'Order has been cancelled successfully',
-      refundStatus: 'initiated',
-      estimatedRefundDays: 3,
-      ...result
-    });
+    return NextResponse.json({ success: true, orderNumber: result.order_number });
   } catch (error) {
-    console.error('Error cancelling order:', error);
-    return NextResponse.json(
-      { error: 'Failed to cancel order' },
-      { status: 500 }
-    );
+    console.error('Cancel order failed:', error);
+    return NextResponse.json({ error: 'Failed to cancel order' }, { status: 500 });
   }
 }

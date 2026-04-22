@@ -14,6 +14,14 @@ import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "@/context/LocationContext";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { LocationSelector } from "@/components/location/LocationSelector";
+import dynamic from "next/dynamic";
+import { LocationSheet } from "@/components/location/LocationSheet";
+import { getSafeFishImage } from "@/lib/fishImage";
+
+const EnhancedLocationPicker = dynamic(
+  () => import('@/components/location/EnhancedLocationPicker'),
+  { ssr: false }
+);
 
 interface CategoryLink {
   id: string;
@@ -21,6 +29,13 @@ interface CategoryLink {
   slug: string;
   // Add other relevant fields if needed by UI, e.g., icon
 }
+
+const FALLBACK_NAV_CATEGORIES: CategoryLink[] = [
+  { id: 'cat-fish-combo', name: 'Fish Combo', slug: 'fish-combo' },
+  { id: 'cat-seafood', name: 'Seafood', slug: 'seafood' },
+  { id: 'cat-fresh-fish', name: 'Fresh Fish', slug: 'fresh-fish' },
+  { id: 'cat-prawns', name: 'Sea Prawns', slug: 'sea-prawns' },
+];
 
 const Header = () => {
   const pathname = usePathname();
@@ -53,14 +68,14 @@ const Header = () => {
     { id: 5, name: "Premium Fish", price: 1299, image: "/images/fish/premium-fish.jpg", category: "premium", type: "category", slug: "/category/premium-fish" },
     
     // Individual Fish Products
-    { id: 6, name: "Paal Sura", price: 599, image: "/images/fishes picss/Paal-sura.jpg", category: "freshwater fish", type: "product", slug: "/fish/paal-sura" },
+    { id: 6, name: "Paal Sura", price: 599, image: "/images/fish/Paal-sura.jpg", category: "freshwater fish", type: "product", slug: "/fish/paal-sura" },
     { id: 7, name: "Tiger Prawns", price: 699, image: "/images/products/prawns.jpg", category: "seafood", type: "product", slug: "/fish/tiger-prawns" },
     { id: 8, name: "Rohu Fish", price: 299, image: "/images/products/rohu.jpg", category: "fish", type: "product", slug: "/fish/rohu" },
     { id: 9, name: "Tuna Steak", price: 599, image: "/images/products/tuna.jpg", category: "fish", type: "product", slug: "/fish/tuna-steak" },
     { id: 10, name: "Crab", price: 499, image: "/images/products/crab.jpg", category: "seafood", type: "product", slug: "/fish/crab" },
     { id: 11, name: "Pomfret", price: 399, image: "/images/products/pomfret.jpg", category: "fish", type: "product", slug: "/fish/pomfret" },
-    { id: 17, name: "Fresh Squid (Kanava)", price: 499, image: "/images/fishes picss/squid.jpg", category: "seafood", type: "product", slug: "/fish/squid" },
-    { id: 18, name: "Cuttlefish (Kanava)", price: 520, image: "/images/fishes picss/cuttlefish.jpg", category: "seafood", type: "product", slug: "/fish/cuttlefish" },
+    { id: 17, name: "Fresh Squid (Kanava)", price: 499, image: "/images/fish/squid.jpg", category: "seafood", type: "product", slug: "/fish/squid" },
+    { id: 18, name: "Cuttlefish (Kanava)", price: 520, image: "/images/fish/squid.jpg", category: "seafood", type: "product", slug: "/fish/cuttlefish" },
     
     // Fish Combos
     { id: 12, name: "Weekend Fish Combo", price: 1299, image: "/images/combos/weekend-combo.jpg", category: "combo", type: "combo", slug: "/combo/weekend-fish" },
@@ -71,10 +86,14 @@ const Header = () => {
   // Get display location
   const displayLocation = currentAddress?.address_string || "Set your location";
 
-  // Handle location click for mobile
+  const [showLocationModal, setShowLocationModal] = useState(false);
+
+  // Handle location click for desktop
   const handleLocationClick = () => {
     if (isMobile) {
       router.push('/choose-location');
+    } else {
+      setShowLocationModal(true);
     }
   };
 
@@ -312,25 +331,16 @@ const Header = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // In a real app, we would navigate to search results page
-      toast.success(`Searching for: ${searchQuery}`);
-      // Don't reset search after submission to keep results visible
       setShowSearchResults(false);
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
   
   // Handle product click with navigation
   const handleProductClick = (product: any) => {
-    // Navigate to the appropriate page based on product type
-    const { id, type, slug } = product;
-    
-    if (slug) {
-      // In a real app, this would use Next.js router to navigate
-      window.location.href = slug;
-    } else {
-      toast.success(`Navigating to product ${id}`);
+    if (product.slug) {
+      router.push(product.slug);
     }
-    
     setShowSearchResults(false);
     setSearchQuery("");
   };
@@ -341,21 +351,36 @@ const Header = () => {
       try {
         const res = await fetch('/api/categories');
         if (!res.ok) {
-          console.error("Failed to fetch categories for nav");
+          setMobileNavCategories(FALLBACK_NAV_CATEGORIES);
           return;
         }
         const data = await res.json();
-        if (Array.isArray(data)) {
-          // Select top 4-6 active categories for quick links, or adjust as needed
-          setMobileNavCategories(
-            data
-              .filter((cat: any) => cat.isActive)
-              .slice(0, 6) // Show up to 6 categories
-              .map((cat: any) => ({ id: cat.id, name: cat.name, slug: cat.slug }))
-          );
+        const categories = Array.isArray(data)
+          ? data
+          : Array.isArray((data as { categories?: unknown[] })?.categories)
+            ? (data as { categories: unknown[] }).categories
+            : [];
+
+        if (!categories.length) {
+          setMobileNavCategories(FALLBACK_NAV_CATEGORIES);
+          return;
         }
+
+        // Select top active categories for quick links.
+        const normalized = categories
+          .filter((cat: any) => cat?.isActive !== false)
+          .slice(0, 6)
+          .map((cat: any) => ({
+            id: String(cat.id || cat.slug || cat.name),
+            name: String(cat.name || 'Category'),
+            slug: String(cat.slug || '').trim(),
+          }))
+          .filter((cat) => cat.slug);
+
+        setMobileNavCategories(normalized.length ? normalized : FALLBACK_NAV_CATEGORIES);
       } catch (error) {
-        console.error("Error fetching nav categories:", error);
+        console.warn('Using fallback nav categories due to fetch error:', error);
+        setMobileNavCategories(FALLBACK_NAV_CATEGORIES);
       }
     };
     fetchNavCategories();
@@ -417,9 +442,13 @@ const Header = () => {
                           {product.image ? (
                             <div className="w-full h-full relative">
                               <img 
-                                src={product.image} 
+                                src={getSafeFishImage(product.image, product.name)} 
                                 alt={product.name}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = getSafeFishImage('', product.name);
+                                }}
                               />
                             </div>
                           ) : (
@@ -492,11 +521,13 @@ const Header = () => {
                 <p className="text-xs text-red-600 font-medium">Deliver to</p>
                 <p className="text-sm font-semibold text-gray-800 truncate max-w-[120px] md:max-w-[160px]">{displayLocation}</p>
               </div>
-              <div>                  <Edit2 
+              <div>
+                <Edit2 
                   className="h-3.5 w-3.5 ml-2 text-red-400 transition-transform hover:scale-110"
                   onClick={(e) => {
                     e.preventDefault();
-                    router.push('/choose-location');
+                    e.stopPropagation();
+                    setShowLocationModal(true);
                   }}
                 />
               </div>
@@ -768,12 +799,12 @@ const Header = () => {
                             {product.image ? (
                               <div className="w-full h-full relative">
                                 <img 
-                                  src={product.image} 
+                                  src={getSafeFishImage(product.image, product.name)} 
                                   alt={product.name}
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
+                                    target.src = getSafeFishImage('', product.name);
                                   }}
                                 />
                               </div>
@@ -934,6 +965,14 @@ const Header = () => {
           </div>
         </Link>
       )}
+      {/* Desktop Location Modal */}
+      <LocationSheet open={showLocationModal} onOpenChange={setShowLocationModal} title="Choose delivery location">
+        <EnhancedLocationPicker
+          isOpen={showLocationModal}
+          onClose={() => setShowLocationModal(false)}
+          isMobile={false}
+        />
+      </LocationSheet>
     </header>
   );
 };

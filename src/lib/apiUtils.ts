@@ -104,14 +104,13 @@ export async function checkServerHealth(): Promise<boolean> {
  * Get authentication headers with token
  */
 export function getAuthHeaders(): HeadersInit {
-  // Try to get token from both possible storage keys
-  const token = typeof window !== 'undefined' 
-    ? localStorage.getItem('token') || localStorage.getItem('oceanFreshToken') || 'admin-test-token'
-    : 'admin-test-token';
-  
+  const token = typeof window !== 'undefined'
+    ? localStorage.getItem('token') || localStorage.getItem('oceanFreshToken')
+    : null;
+
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -148,19 +147,20 @@ export async function getUserIdFromAuth(request?: NextRequest): Promise<string |
       // token = cookieStore.get('token')?.value || cookieStore.get('oceanFreshToken')?.value;
     }
     
-    // Use default test token if no token found
-    if (!token || token === 'admin-test-token') {
-      return '88e49eec-e6fb-404a-93da-6fa7740ad944'; // Test admin user ID
+    if (!token) {
+      return null;
     }
-    
-    // Call auth service to verify token and get user ID
+
+    // Call auth service to verify token and get user ID.
+    // The backend implementation can decide whether to decode JWT or
+    // resolve a session record.
     // const response = await fetch('/api/auth/verify', {
     //   headers: { Authorization: `Bearer ${token}` }
     // });
     // const data = await response.json();
     // return data.userId;
-    
-    return '88e49eec-e6fb-404a-93da-6fa7740ad944'; // Default to test user
+
+    return null;
   } catch (error) {
     console.error('Error getting user ID from auth:', error);
     return null;

@@ -5,6 +5,9 @@
 
 import React from 'react';
 import { toast } from 'sonner';
+import { clientStorage } from '@/lib/clientStorage';
+import { getAuthHeaders } from '@/lib/apiClient';
+import { getSupabaseBrowserClient, isSupabaseRealtimeEnabled } from '@/lib/supabaseClient';
 
 export interface Address {
   id: string;
@@ -19,6 +22,53 @@ export interface Address {
 }
 
 const STORAGE_KEY = 'savedAddresses';
+const API_BASE = '/api/user/addresses';
+
+function getGuestStorageKey() {
+  return `${STORAGE_KEY}:guest`;
+}
+
+function getUserStorageKey(userIdOrEmail: string) {
+  return `${STORAGE_KEY}:user:${userIdOrEmail}`;
+}
+
+function getCurrentStorageKey() {
+  const user = clientStorage.user.get();
+  const identity = user?.id || user?.email;
+  if (!identity) {
+    return getGuestStorageKey();
+  }
+  return getUserStorageKey(identity);
+}
+
+function hasAuthenticatedUser() {
+  const user = clientStorage.user.get();
+  const token = clientStorage.auth.getToken();
+  return Boolean(token && user?.id && user?.email);
+}
+
+function getUserHeaders() {
+  if (!hasAuthenticatedUser()) {
+    return null;
+  }
+
+  const headers = getAuthHeaders();
+  const hasIdentity =
+    headers.has('Authorization') ||
+    headers.has('x-user-id') ||
+    headers.has('x-user-email') ||
+    headers.has('x-auth-user-id');
+
+  if (!hasIdentity) {
+    return null;
+  }
+
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return headers;
+}
 
 /**
  * Address sync event to notify other components of changes
@@ -39,7 +89,7 @@ export const addressManager = {  /**
    */
   getAddresses(): Address[] {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(getCurrentStorageKey());
       if (!stored) return [];
       
       const addresses = JSON.parse(stored);
@@ -62,13 +112,102 @@ export const addressManager = {  /**
   /**
    * Save addresses to localStorage and notify listeners
    */
-  saveAddresses(addresses: Address[]): void {
+  saveAddresses(addresses: Address[], notify = true): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(addresses));
-      addressSyncEvent.notifyChange();
+      localStorage.setItem(getCurrentStorageKey(), JSON.stringify(addresses));
+      if (notify) {
+        addressSyncEvent.notifyChange();
+      }
     } catch (error) {
       console.error('Error saving addresses:', error);
       toast.error('Failed to save addresses');
+    }
+  },
+
+  async syncFromApi(): Promise<Address[]> {
+    try {
+      const headers = getUserHeaders();
+      if (!headers) {
+        return this.getAddresses();
+      }
+
+      const response = await fetch(API_BASE, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        return this.getAddresses();
+      }
+
+      const serverAddresses = (await response.json()) as Address[];
+      this.saveAddresses(serverAddresses);
+      return serverAddresses;
+    } catch (error) {
+      console.error('Error syncing addresses from API:', error);
+      return this.getAddresses();
+    }
+  },
+
+  async bootstrapAddresses(): Promise<Address[]> {
+    const user = clientStorage.user.get();
+    const identity = user?.id || user?.email;
+    if (!identity) {
+      return this.getAddresses();
+    }
+
+    const userKey = getUserStorageKey(identity);
+    const guestKey = getGuestStorageKey();
+    const guestAddresses = JSON.parse(localStorage.getItem(guestKey) || '[]') as Address[];
+    const userLocal = JSON.parse(localStorage.getItem(userKey) || '[]') as Address[];
+
+    const headers = getUserHeaders();
+    if (!headers) {
+      return this.getAddresses();
+    }
+
+    try {
+      const serverResponse = await fetch(API_BASE, { method: 'GET', headers });
+      if (!serverResponse.ok) {
+        return this.getAddresses();
+      }
+
+      const serverAddresses = (await serverResponse.json()) as Address[];
+      if (serverAddresses.length > 0) {
+        this.saveAddresses(serverAddresses);
+        return serverAddresses;
+      }
+
+      const seedAddresses = userLocal.length > 0 ? userLocal : guestAddresses;
+      if (seedAddresses.length === 0) {
+        return this.getAddresses();
+      }
+
+      for (const addr of seedAddresses) {
+        await fetch(API_BASE, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: addr.name,
+            phoneNumber: addr.phoneNumber,
+            address: addr.address,
+            city: addr.city,
+            state: addr.state,
+            pincode: addr.pincode,
+            type: addr.type,
+            isDefault: addr.isDefault,
+          }),
+        });
+      }
+
+      const refreshed = await this.syncFromApi();
+      if (guestAddresses.length > 0) {
+        localStorage.removeItem(guestKey);
+      }
+      return refreshed;
+    } catch (error) {
+      console.error('Address bootstrap failed:', error);
+      return this.getAddresses();
     }
   },
 
@@ -92,6 +231,32 @@ export const addressManager = {  /**
 
     addresses.push(newAddress);
     this.saveAddresses(addresses);
+
+    // Keep DB in sync in background and replace optimistic ID with server ID.
+    void (async () => {
+      try {
+        const headers = getUserHeaders();
+        if (!headers) return;
+
+        const response = await fetch(API_BASE, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(address),
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || 'Failed to save address to server');
+        }
+
+        const created = (await response.json()) as Address;
+        const current = this.getAddresses().map((item) => (item.id === newAddress.id ? created : item));
+        this.saveAddresses(current);
+      } catch (error) {
+        console.error('Address API create failed:', error);
+        toast.error('Saved locally, but failed to sync to account');
+      }
+    })();
     
     toast.success('Address added successfully');
     return newAddress;
@@ -119,6 +284,29 @@ export const addressManager = {  /**
 
     addresses[index] = updatedAddress;
     this.saveAddresses(addresses);
+
+    void (async () => {
+      try {
+        const headers = getUserHeaders();
+        if (!headers) return;
+
+        const response = await fetch(`${API_BASE}/${id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update address on server');
+        }
+
+        const serverAddress = (await response.json()) as Address;
+        const current = this.getAddresses().map((item) => (item.id === id ? serverAddress : item));
+        this.saveAddresses(current);
+      } catch (error) {
+        console.error('Address API update failed:', error);
+      }
+    })();
     
     toast.success('Address updated successfully');
     return updatedAddress;
@@ -145,6 +333,27 @@ export const addressManager = {  /**
     }
 
     this.saveAddresses(addresses);
+
+    void (async () => {
+      try {
+        const headers = getUserHeaders();
+        if (!headers) return;
+
+        const response = await fetch(`${API_BASE}/${id}`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete address from server');
+        }
+
+        await this.syncFromApi();
+      } catch (error) {
+        console.error('Address API delete failed:', error);
+      }
+    })();
+
     toast.success('Address deleted successfully');
     return true;
   },
@@ -168,6 +377,27 @@ export const addressManager = {  /**
     targetAddress.isDefault = true;
     
     this.saveAddresses(addresses);
+
+    void (async () => {
+      try {
+        const headers = getUserHeaders();
+        if (!headers) return;
+
+        const response = await fetch(`${API_BASE}/${id}/default`, {
+          method: 'PATCH',
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to set default on server');
+        }
+
+        await this.syncFromApi();
+      } catch (error) {
+        console.error('Address API set default failed:', error);
+      }
+    })();
+
     toast.success('Default address updated');
     return targetAddress;
   },
@@ -233,9 +463,7 @@ export const addressManager = {  /**
       errors.push('Address name is required');
     }
     
-    if (!address.phoneNumber?.trim()) {
-      errors.push('Phone number is required');
-    } else if (!/^\+?[\d\s-()]{10,15}$/.test(address.phoneNumber.trim())) {
+    if (address.phoneNumber?.trim() && !/^\+?[\d\s-()]{10,15}$/.test(address.phoneNumber.trim())) {
       errors.push('Invalid phone number format');
     }
     
@@ -311,6 +539,9 @@ export const addressManager = {  /**
 export function useAddressSync() {
   const [addresses, setAddresses] = React.useState<Address[]>([]);
   const [defaultAddress, setDefaultAddress] = React.useState<Address | null>(null);
+  const [realtimeProfileId, setRealtimeProfileId] = React.useState<string | null>(
+    clientStorage.user.get()?.id || null
+  );
 
   // Load addresses on mount and subscribe to changes
   React.useEffect(() => {
@@ -318,16 +549,61 @@ export function useAddressSync() {
       const allAddresses = addressManager.getAddresses();
       setAddresses(allAddresses);
       setDefaultAddress(addressManager.getDefaultAddress());
+      setRealtimeProfileId(clientStorage.user.get()?.id || null);
     };
 
     // Initial load
     loadAddresses();
 
+    // Migrate guest addresses after login and pull latest server addresses.
+    void addressManager.bootstrapAddresses();
+
     // Subscribe to changes
     const unsubscribe = addressManager.subscribe(loadAddresses);
 
-    return unsubscribe;
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key) return;
+      if (event.key.startsWith('kadal:user') || event.key.startsWith('kadal:auth')) {
+        loadAddresses();
+        void addressManager.bootstrapAddresses();
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
+
+  React.useEffect(() => {
+    if (!realtimeProfileId) return;
+    if (!isSupabaseRealtimeEnabled()) return;
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`addresses:${realtimeProfileId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'addresses',
+          filter: `profile_id=eq.${realtimeProfileId}`,
+        },
+        () => {
+          void addressManager.syncFromApi();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [realtimeProfileId]);
 
   return {
     addresses,

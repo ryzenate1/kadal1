@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Header from "./Header";
 import ModernFooter from "../../layout/ModernFooter";
@@ -29,55 +29,23 @@ const RootLayout = ({ children }: RootLayoutProps) => {
     fishName: ""
   });
   const { cart } = useCart();
+  const prevCartLengthRef = useRef(0);
   
-  // Listen for cart changes to show notification
+  // Listen for cart changes to show notification only when items are added
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'tendercutsCart') {
-        const oldCart = e.oldValue ? JSON.parse(e.oldValue) : [];
-        const newCart = e.newValue ? JSON.parse(e.newValue) : [];
-        
-        if (newCart.length > oldCart.length) {
-          // Item added
-          const newItem = newCart[newCart.length - 1];
-          setNotification({
-            isOpen: true,
-            fishName: newItem.name
-          });
-        } else if (newCart.length === oldCart.length) {
-          // Check if quantity increased
-          for (let i = 0; i < newCart.length; i++) {
-            const oldItem = oldCart.find((item: any) => item.id === newCart[i].id);
-            if (oldItem && newCart[i].quantity > oldItem.quantity) {
-              setNotification({
-                isOpen: true,
-                fishName: newCart[i].name
-              });
-              break;
-            }
-          }
-        }
-      }
-    };
+    const currentCount = cart.length;
+    const prevCount = prevCartLengthRef.current;
     
-    // For cart updates, use the useCart hook directly
-    // We'll use a simpler approach to catch cart updates
-    const cartItemCount = cart.length;
-    
-    // Listen for cart updates
-    if (cartItemCount > 0 && cart[cartItemCount - 1]) {
-      const lastAddedItem = cart[cartItemCount - 1];
+    if (currentCount > prevCount && cart[cart.length - 1]) {
+      const lastAddedItem = cart[cart.length - 1];
       setNotification({
         isOpen: true,
         fishName: lastAddedItem.name
       });
     }
     
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageChange);
-      return () => window.removeEventListener('storage', handleStorageChange);
-    }
-  }, []);
+    prevCartLengthRef.current = currentCount;
+  }, [cart]);
   
   const closeNotification = () => {
     setNotification({
@@ -93,7 +61,17 @@ const RootLayout = ({ children }: RootLayoutProps) => {
   
   return (
     <div className="flex flex-col min-h-screen">
-      <Toaster position="top-center" richColors closeButton />
+      <Toaster
+        position="top-right"
+        richColors
+        closeButton
+        // Clear the sticky header (~64px mobile / ~80px desktop) plus breathing room
+        offset={88}
+        toastOptions={{
+          style: { zIndex: 9999 },
+        }}
+        className="z-[9999]"
+      />
       <CartNotification 
         fishName={notification.fishName}
         isOpen={notification.isOpen}
@@ -112,11 +90,11 @@ const RootLayout = ({ children }: RootLayoutProps) => {
       <main className={`flex-1 ${isLocationPage ? 'pt-0' : ''}`}>
         {children}
       </main>
-      {isNavVisible && !isLocationPage && isHomePage && (
-        <>
-          <ModernFooter />
-          <MobileNav />
-        </>
+      {isNavVisible && isHomePage && (
+        <ModernFooter />
+      )}
+      {isNavVisible && !isLocationPage && (
+        <MobileNav />
       )}
     </div>
   );

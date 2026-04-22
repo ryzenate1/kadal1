@@ -3,10 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Fish, Shell, ShoppingCart, Check } from 'lucide-react';
-import { SafeButton } from '@/components/ui/safe-button';
-import { SafeHtmlButton } from '@/components/ui/safe-html-button';
+import { ChevronLeft, ChevronRight, Fish, Shell, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCart } from '@/context/CartContext';
 
@@ -21,412 +18,198 @@ interface PremiumFish {
   discountPrice: number;
 }
 
-interface WeightOption {
-  value: string;
-  label: string;
-  multiplier: number;
-}
+interface WeightOption { value: string; label: string; multiplier: number; }
 
-// Animation variants
-const fadeInUp = {
-  hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1
-  }
-};
-
-// Fallback premium fish data
-const weightOptions: WeightOption[] = [
+const WEIGHTS: WeightOption[] = [
   { value: '250g', label: '250g', multiplier: 0.5 },
   { value: '500g', label: '500g', multiplier: 1 },
-  { value: '1kg', label: '1kg', multiplier: 2 },
-  { value: '2kg', label: '2kg', multiplier: 3.8 }
+  { value: '1kg',  label: '1kg',  multiplier: 2 },
+  { value: '2kg',  label: '2kg',  multiplier: 3.8 },
 ];
 
-// Premium fish collection
-const premiumFishCollection: PremiumFish[] = [
-  {
-    id: 1,
-    name: "Premium Vangaram Fish",
-    image: "/images/fish/vangaram.jpg",
-    slug: "premium-vangaram-fish",
-    type: "Premium Fish",
-    description: "Fresh whole Vangaram, premium quality for perfect curry or fry",
-    basePrice: 1399,
-    discountPrice: 899
-  },
-  {
-    id: 2,
-    name: "Vangaram Slices",
-    image: "/images/fish/sliced-vangaram.jpg",
-    slug: "premium-vangaram-slices",
-    type: "Premium Fish",
-    description: "Expertly sliced Vangaram, ready to cook, perfect thickness",
-    basePrice: 1399,
-    discountPrice: 899
-  },
-  {
-    id: 3,
-    name: "Big Prawns XL",
-    image: "/images/fish/big-prawn.webp",
-    slug: "premium-big-prawns",
-    type: "Premium Seafood",
-    description: "Jumbo-sized prawns, perfect for grilling or special recipes",
-    basePrice: 1399,
-    discountPrice: 899
-  },
-  {
-    id: 4,
-    name: "Blue Crabs Premium",
-    image: "/images/fish/blue-crabs.jpg",
-    slug: "premium-blue-crabs",
-    type: "Premium Seafood",
-    description: "Select large blue crabs, packed with rich meat",
-    basePrice: 1399,
-    discountPrice: 899
-  },
-  {
-    id: 5,
-    name: "Fresh Lobster XL",
-    image: "/images/fish/lobster.jpg",
-    slug: "premium-lobster",
-    type: "Premium Seafood",
-    description: "Large premium lobster, the ultimate seafood delicacy",
-    basePrice: 1399,
-    discountPrice: 899
-  },
-  {
-    id: 6,
-    name: "Fresh Squid Premium",
-    image: "/images/fish/squid.jpg",
-    slug: "premium-squid",
-    type: "Premium Seafood",
-    description: "Premium quality squid, perfect for frying or curry",
-    basePrice: 1399,
-    discountPrice: 899
-  }
+const FISH_LIST: PremiumFish[] = [
+  { id: 1, name: 'Vanjaram Fish',       image: '/images/fish/vangaram.jpg',       slug: 'vanjaram',       type: 'Premium Fish',  description: 'Fresh whole Vanjaram, perfect for curry or fry',     basePrice: 1399, discountPrice: 899  },
+  { id: 2, name: 'Vanjaram Slices',     image: '/images/fish/sliced-vangaram.jpg', slug: 'sliced-vanjaram', type: 'Premium Fish',  description: 'Pre-sliced Vanjaram, ready to cook',                 basePrice: 1399, discountPrice: 949  },
+  { id: 3, name: 'Tuna Slices',         image: '/images/fish/tuna-fish.jpg',       slug: 'tuna-slices',    type: 'Premium Fish',  description: 'Pre-cut tuna steaks, quick cooking',                  basePrice: 1499, discountPrice: 1199 },
+  { id: 4, name: 'Big Prawns XL',       image: '/images/fish/big-prawn.webp',      slug: 'big-prawns',     type: 'Seafood',       description: 'Jumbo prawns, perfect for grilling',                 basePrice: 1399, discountPrice: 899  },
+  { id: 5, name: 'Blue Crabs',          image: '/images/fish/blue-crabs.jpg',      slug: 'blue-crabs',     type: 'Seafood',       description: 'Large blue crabs packed with rich meat',              basePrice: 1399, discountPrice: 899  },
+  { id: 6, name: 'Fresh Lobster',       image: '/images/fish/lobster.jpg',         slug: 'fresh-lobster',  type: 'Seafood',       description: 'Premium whole lobster, the ultimate delicacy',       basePrice: 2599, discountPrice: 1899 },
+  { id: 7, name: 'Salmon',              image: '/images/fish/salmon.jpg',          slug: 'salmon',         type: 'Premium Fish',  description: 'Atlantic salmon, rich in omega-3',                   basePrice: 1599, discountPrice: 1299 },
+  { id: 8, name: 'Fresh Squid',         image: '/images/fish/squid.jpg',           slug: 'squid',          type: 'Seafood',       description: 'Premium quality squid, perfect for fry or curry',    basePrice: 1199, discountPrice: 899  },
 ];
+
+const CARD_W = 240;
+const CARD_GAP = 16;
 
 const CategorySlider = () => {
-  const [premiumFish, setPremiumFish] = useState<PremiumFish[]>(premiumFishCollection);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [isClient, setIsClient] = useState<boolean>(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const { addToCart } = useCart() || {};
-  
-  // For each product, store the selected weight
-  const [selectedWeights, setSelectedWeights] = useState<{[key: string]: WeightOption}>({});
+  const [selWeights, setSelWeights] = useState<Record<string, WeightOption>>({});
+  const [canLeft,  setCanLeft]  = useState(false);
+  const [canRight, setCanRight] = useState(true);
 
-  // Client-side only media query detection
   useEffect(() => {
-    setIsClient(true);
-    
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
+    const init: Record<string, WeightOption> = {};
+    FISH_LIST.forEach(f => { init[String(f.id)] = WEIGHTS[1]; });
+    setSelWeights(init);
   }, []);
 
-  // Initialize selected weights
+  const updateNav = () => {
+    const el = sliderRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 8);
+    setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
+  };
+
   useEffect(() => {
-    const initialWeights: {[key: string]: WeightOption} = {};
-    premiumFish.forEach(fish => {
-      initialWeights[fish.id.toString()] = weightOptions[1]; // Default to 500g
+    const el = sliderRef.current;
+    if (!el) return;
+    updateNav();
+    el.addEventListener('scroll', updateNav, { passive: true });
+    return () => el.removeEventListener('scroll', updateNav);
+  }, []);
+
+  const scroll = (dir: 'left' | 'right') => {
+    sliderRef.current?.scrollBy({
+      left: dir === 'left' ? -(CARD_W + CARD_GAP) : (CARD_W + CARD_GAP),
+      behavior: 'smooth',
     });
-    setSelectedWeights(initialWeights);
-  }, [premiumFish]);
-
-  // Helper function to get image URL with fallback
-  const getImageUrl = (item: PremiumFish): string => {
-    if (!item) return "/images/fish/vangaram.jpg";
-
-    if (item.image) {
-      if (item.image.startsWith('http')) {
-        return item.image;
-      } else {
-        const localImagePath = item.image.startsWith('/') ? item.image : `/${item.image}`;
-        return localImagePath;
-      }
-    }
-
-    return "/images/fish/vangaram.jpg";
   };
 
-  // Get icon component based on category type
-  const getIconComponent = (itemType: string | undefined) => {
-    if (!itemType) return <Fish className="w-4 h-4" />;
-    
-    const type = itemType.toLowerCase();
-    if (type.includes('prawn') || type.includes('crab') || type.includes('shell') || type.includes('lobster')) {
-      return <Shell className="w-4 h-4" />;
-    }
-    
-    return <Fish className="w-4 h-4" />;
-  };
+  const calcPrice = (base: number, m: number) => Math.round(base * m);
 
-  // Handle weight selection
-  const handleWeightChange = (fishId: string | number, option: WeightOption) => {
-    setSelectedWeights(prev => ({
-      ...prev,
-      [fishId.toString()]: option
-    }));
-  };
-
-  // Calculate price based on weight
-  const calculatePrice = (basePrice: number, multiplier: number) => {
-    return Math.round(basePrice * multiplier);
-  };
-
-  // Add to cart functionality
-  const handleAddToCart = (fish: PremiumFish) => {
-    if (!addToCart) {
-      console.error('addToCart function is not available');
-      toast.error('Shopping cart is not available');
-      return;
-    }
-    
-    const selectedWeight = selectedWeights[fish.id.toString()] || weightOptions[1];
-    const finalPrice = calculatePrice(fish.discountPrice, selectedWeight.multiplier);
-    const originalPrice = calculatePrice(fish.basePrice, selectedWeight.multiplier);
-    
+  const handleAdd = (fish: PremiumFish) => {
+    if (!addToCart) return;
+    const w = selWeights[String(fish.id)] ?? WEIGHTS[1];
+    const price = calcPrice(fish.discountPrice, w.multiplier);
     try {
-      const cartItem = {
-        id: fish.id.toString(),
-        name: `${fish.name} (${selectedWeight.label})`,
-        src: getImageUrl(fish),
-        type: fish.type || 'Premium', 
-        price: finalPrice,
-        originalPrice: originalPrice,
-        omega3: 0,
-        protein: 0,
-        calories: 0,
-        benefits: ['Premium', 'Fresh', 'High Quality'],
-        bestFor: ['Special Occasions', 'Premium Recipes'],
+      addToCart({
+        name: `${fish.name} (${w.label})`,
+        src: fish.image,
+        type: fish.type ?? 'Premium',
+        price,
+        originalPrice: calcPrice(fish.basePrice, w.multiplier),
+        omega3: 0, protein: 0, calories: 0,
+        benefits: ['Premium', 'Fresh'],
+        bestFor: ['Special Occasions'],
         rating: 4.9,
-        description: fish.description || '',
         quantity: 1,
-        addedAt: new Date(),
-        netWeight: selectedWeight.label,
-        grossWeight: selectedWeight.label
-      };
-      
-      addToCart(cartItem);
-      toast.success(`${fish.name} (${selectedWeight.label}) added to cart!`, {
-        description: `₹${finalPrice} • ${selectedWeight.label}`,
-        duration: 2000,
-      });
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      toast.error('Failed to add item to cart');
-    }
+        netWeight: w.label, grossWeight: w.label,
+      }, 1);
+      toast.success(`${fish.name} (${w.label}) added to cart!`);
+    } catch { toast.error('Failed to add item to cart'); }
   };
-
-  // Scroll functions for mobile
-  const scrollLeft = () => {
-    if (sliderRef && sliderRef.current) {
-      const scrollAmount = sliderRef.current.clientWidth * 0.8;
-      sliderRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-    }
-  };
-
-  const scrollRight = () => {
-    if (sliderRef && sliderRef.current) {
-      const scrollAmount = sliderRef.current.clientWidth * 0.8;
-      sliderRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    }
-  };
-
-  // Initialize premium fish data
-  useEffect(() => {
-    // We're using our predefined premium collection, so just simulate loading
-    setLoading(true);
-    setTimeout(() => {
-      setPremiumFish(premiumFishCollection);
-      setLoading(false);
-    }, 300);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="w-full py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-          <div className="animate-pulse flex space-x-4 overflow-hidden">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex-shrink-0 w-[260px]">
-                <div className="bg-gray-200 rounded-xl h-48"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="w-full py-6">
+    <div className="w-full py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-6">
+
+        {/* Header */}
+        <div className="flex items-end justify-between mb-5">
           <div>
-            <h2 className="text-heading mb-2">
-              Premium Collections
-            </h2>
-            <p className="text-body">
-              Explore our premium selection of high-quality seafood
-            </p>
+            <p className="text-xs font-semibold text-red-600 uppercase tracking-widest mb-0.5">Our Best</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Premium Collections</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Hand-picked, freshest seafood daily</p>
           </div>
-          
-          {/* Navigation Buttons - Hidden on Mobile */}
-          {isClient && !isMobile && (
-            <div className="flex gap-2">
-              <SafeHtmlButton 
-                onClick={scrollLeft}
-                className="p-2 rounded-full bg-white shadow-md text-blue-600 hover:bg-blue-50 transition-colors"
-                aria-label="Scroll left"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </SafeHtmlButton>
-              <SafeHtmlButton 
-                onClick={scrollRight}
-                className="p-2 rounded-full bg-white shadow-md text-blue-600 hover:bg-blue-50 transition-colors"
-                aria-label="Scroll right"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </SafeHtmlButton>
-            </div>
-          )}
-        </div>
-        
-        {/* Mobile Navigation Controls */}
-        {isClient && isMobile && (
-          <div className="flex justify-between items-center mb-4 px-2">
-            <SafeHtmlButton 
-              onClick={scrollLeft}
-              className="p-2 rounded-full bg-white shadow-md text-blue-600 hover:bg-blue-50 transition-colors"
-              aria-label="Scroll left"
-            >
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={() => scroll('left')} disabled={!canLeft}
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:border-red-300 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              aria-label="Scroll left">
               <ChevronLeft className="w-4 h-4" />
-            </SafeHtmlButton>
-            <span className="text-sm text-gray-500">Swipe to explore</span>
-            <SafeHtmlButton 
-              onClick={scrollRight}
-              className="p-2 rounded-full bg-white shadow-md text-blue-600 hover:bg-blue-50 transition-colors"
-              aria-label="Scroll right"
-            >
+            </button>
+            <button onClick={() => scroll('right')} disabled={!canRight}
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:border-red-300 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              aria-label="Scroll right">
               <ChevronRight className="w-4 h-4" />
-            </SafeHtmlButton>
+            </button>
           </div>
-        )}
-        
-        {/* Premium Fish Slider */}
-        <div 
+        </div>
+
+        {/* Slider — same behaviour on all viewports */}
+        <div
           ref={sliderRef}
-          className="flex overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory gap-4"
+          className="flex gap-4 overflow-x-auto pb-3"
           style={{
-            scrollBehavior: 'smooth',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
             WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x mandatory'
+            scrollSnapType: 'x mandatory',
           }}
+          onScroll={updateNav}
         >
-          {premiumFish.map((fish, index) => {
-            const selectedWeight = selectedWeights[fish.id.toString()] || weightOptions[1];
-            const finalPrice = calculatePrice(fish.discountPrice, selectedWeight.multiplier);
-            const originalPrice = calculatePrice(fish.basePrice, selectedWeight.multiplier);
-            
+          {FISH_LIST.map(fish => {
+            const w = selWeights[String(fish.id)] ?? WEIGHTS[1];
+            const price    = calcPrice(fish.discountPrice, w.multiplier);
+            const original = calcPrice(fish.basePrice, w.multiplier);
+            const discount = Math.round(((original - price) / original) * 100);
+            const isSeafood = fish.type?.toLowerCase().includes('seafood');
+
             return (
-              <motion.div 
-                key={fish.id} 
-                variants={fadeInUp}
-                initial="hidden"
-                animate="visible"
-                custom={index}
-                className="flex-shrink-0 w-[280px] sm:w-[320px] snap-start"
-                style={{ scrollSnapAlign: 'start' }}
+              <div
+                key={fish.id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden flex-shrink-0"
+                style={{ width: CARD_W, scrollSnapAlign: 'start' }}
               >
-                <div className="card-base overflow-hidden h-full hover:shadow-lg transition-all duration-300 border border-gray-100">
-                  <div className="relative h-40 sm:h-44">
-                    <Image 
-                      src={getImageUrl(fish)}
-                      alt={fish.name}
-                      fill
-                      style={{ objectFit: 'cover' }}
-                      className="transition-transform hover:scale-105 duration-300"
-                      sizes="(max-width: 640px) 280px, 320px"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/images/fish/vangaram.jpg";
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 bg-primary-accent text-white text-xs font-bold px-2 py-1 rounded-md">
-                      PREMIUM
-                    </div>
+                {/* Image */}
+                <Link href={`/product/${fish.slug}`} className="block relative overflow-hidden" style={{ height: 160 }}>
+                  <Image
+                    src={fish.image} alt={fish.name} fill
+                    className="object-cover hover:scale-105 transition-transform duration-300"
+                    sizes="240px"
+                    onError={e => { (e.target as HTMLImageElement).src = '/images/fish/vangaram.jpg'; }}
+                  />
+                  {discount > 0 && (
+                    <span className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {discount}% OFF
+                    </span>
+                  )}
+                  <span className="absolute top-2 right-2 bg-white/80 backdrop-blur-sm text-gray-700 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                    {isSeafood ? <Shell className="w-2.5 h-2.5" /> : <Fish className="w-2.5 h-2.5" />}
+                    {fish.type}
+                  </span>
+                </Link>
+
+                {/* Body */}
+                <div className="p-3 space-y-2.5">
+                  <Link href={`/product/${fish.slug}`}>
+                    <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-1 hover:text-red-600 transition-colors">
+                      {fish.name}
+                    </h3>
+                  </Link>
+
+                  {/* Weight chips */}
+                  <div className="flex gap-1">
+                    {WEIGHTS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSelWeights(prev => ({ ...prev, [String(fish.id)]: opt }))}
+                        className={`px-1.5 py-0.5 rounded-lg text-[10px] font-medium border transition-all ${
+                          w.value === opt.value
+                            ? 'border-red-600 bg-red-50 text-red-700'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-subheading line-clamp-1">{fish.name}</h3>
-                      <div className="flex items-center gap-1 bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full text-xs">
-                        {getIconComponent(fish.type)}
-                        <span>{fish.type || 'Premium'}</span>
-                      </div>
+
+                  {/* Price + cart */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-gray-900">₹{price}</span>
+                      <span className="text-xs text-gray-400 line-through ml-1">₹{original}</span>
                     </div>
-                    
-                    <p className="text-small line-clamp-2 mb-3">
-                      {fish.description || `Premium ${fish.name} selection`}
-                    </p>
-                    
-                    {/* Weight Options */}
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="flex gap-1">
-                        {weightOptions.map((option) => (
-                          <SafeHtmlButton
-                            key={option.value}
-                            onClick={() => handleWeightChange(fish.id, option)}
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              selectedWeight.value === option.value
-                                ? 'bg-blue-100 text-blue-800 ring-1 ring-blue-400'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            {option.label}
-                          </SafeHtmlButton>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Price Display - Enhanced */}
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-bold text-success text-lg sm:text-xl">₹{finalPrice}</span>
-                        <span className="text-xs text-muted line-through">₹{originalPrice}</span>
-                      </div>
-                      <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded">
-                        {Math.round(((originalPrice - finalPrice) / originalPrice) * 100)}% OFF
-                      </span>
-                    </div>
-                    
-                    {/* Add to Cart Button */}
-                    <SafeButton
-                      onClick={() => handleAddToCart(fish)}
-                      className="btn-base btn-primary w-full text-sm py-2"
-                      size="sm"
-                      variant="default"
+                    <button
+                      onClick={() => handleAdd(fish)}
+                      className="flex items-center gap-1 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-colors shadow-sm"
                     >
-                      <ShoppingCart className="w-4 h-4 mr-1.5" />
-                      Add to Cart
-                    </SafeButton>
+                      <ShoppingCart className="w-3 h-3" />
+                      Add
+                    </button>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>

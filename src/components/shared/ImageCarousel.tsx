@@ -118,7 +118,7 @@ const ImageCarousel = ({
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >          {/* Images Container */}
-          <div className="relative w-full aspect-[16/9] md:aspect-[21/9] overflow-hidden touch-pan-y">
+          <div className="relative w-full aspect-[16/7] md:aspect-[21/8] lg:aspect-[21/7] overflow-hidden touch-pan-y">
             <div 
               className="flex transition-transform duration-500 ease-in-out h-full will-change-transform"
               style={{ transform: `translateX(-${currentIndex * 100}%)` }}

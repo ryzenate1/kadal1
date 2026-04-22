@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogOverlay } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogOverlay, DialogTitle } from '@/components/ui/dialog';
 import { MapPin, X, Loader2, Home, Briefcase, MapPinned, Search, Navigation, PlusCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocation, Address } from '@/context/LocationContext';
 import { SavedAddressCard } from '@/components/address/SavedAddressCard';
-import { MapComponent } from '@/components/map/MapComponent';
+import { MapComponent } from '@/components/maps/MapComponent';
 import { reverseGeocode, geocodeAddress } from '@/services/geocoding';
 
 type LocationModalProps = {
@@ -233,6 +233,7 @@ export function DesktopLocationModal({ open, onOpenChange }: LocationModalProps)
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogOverlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
       <DialogContent className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogTitle className="sr-only">Choose delivery location</DialogTitle>
         {/* Header */}
         <div className="border-b p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">

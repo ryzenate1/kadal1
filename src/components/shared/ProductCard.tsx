@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useCart } from "@/context/CartContext";
 import { useStock } from "@/hooks/useStock";
 import AddToCartLoginRequired from "@/components/AddToCartLoginRequired";
 import WishlistLoginRequired from "@/components/WishlistLoginRequired";
+import { getFallbackFishImage, getSafeFishImage } from "@/lib/fishImage";
 
 interface ProductCardProps {
   id: number | string;
@@ -62,6 +63,7 @@ const ProductCard = ({
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageSrc, setImageSrc] = useState(getSafeFishImage(image, name));
   const { addToCart } = useCart();
   const { showToast } = useToast();
   
@@ -90,8 +92,10 @@ const ProductCard = ({
       
       // Then add to cart
       addToCart({
+        productId: String(id),
         name,
         src: image,
+        image,
         type,
         price,
         quantity: selectedQuantity,
@@ -119,6 +123,11 @@ const ProductCard = ({
       setIsAddingToCart(false);
     }
   };
+
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageSrc(getSafeFishImage(image, name));
+  }, [image, name]);
 
   const incrementQuantity = () => {
     if (stock.status !== "out-of-stock" && selectedQuantity < stock.available) {
@@ -154,23 +163,37 @@ const ProductCard = ({
     }
   };
 
+  const formatInr = (amount: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount);
+
   return (
-    <div className="card-base p-3 relative">
+    <div className="ecom-product-card p-3.5 relative">
       <Link href={`/product/${slug}`}>
-        <div className="relative aspect-square rounded-lg overflow-hidden mb-3">
+        <div className="relative aspect-square rounded-xl overflow-hidden mb-3.5">
           {/* Add image loading skeleton */}
           <div className="relative aspect-square overflow-hidden">
             {!imageLoaded && (
               <div className="absolute inset-0 animate-pulse bg-gray-200" />
             )}
             <Image
-              src={image}
+              src={imageSrc}
               alt={name}
               fill
               className={`object-cover transition-opacity duration-300 ${
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={() => setImageLoaded(true)}
+              onError={() => {
+                setImageLoaded(true);
+                const fallback = getFallbackFishImage(name);
+                setImageSrc((currentSrc) =>
+                  currentSrc === fallback ? '/images/fish/mackerel.jpg' : fallback
+                );
+              }}
             />
             {/* Replace wishlist button with WishlistLoginRequired component */}
             <WishlistLoginRequired productId={String(id)} productName={name} />
@@ -178,7 +201,7 @@ const ProductCard = ({
         </div>
       </Link>
 
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Link href={`/product/${slug}`}>
           <h3 className="text-subheading hover:text-primary-accent transition-colors line-clamp-2">
             {name}
@@ -218,13 +241,13 @@ const ProductCard = ({
               setShowInfo(!showInfo);
             }}
           >
-            <Info className="h-4 w-4 text-gray-500" />
+            <Info className="h-4 w-4 text-primary" />
             <span className="sr-only">Fish Info</span>
           </Button>
         </div>
         
         {showInfo && (
-          <div className="text-xs text-gray-600 space-y-1 bg-gray-50 p-2 rounded-md">
+          <div className="text-xs text-gray-600 space-y-1 bg-slate-50 p-2 rounded-md border border-slate-200">
             {type && <div>Type: {type}</div>}
             {calories > 0 && <div>Calories: {calories} per 100g</div>}
             {protein > 0 && <div>Protein: {protein}g per 100g</div>}
@@ -233,27 +256,27 @@ const ProductCard = ({
         )}
 
         <div className="flex items-center space-x-2">
-          <span className="text-lg font-semibold text-success">₹{price}</span>
+          <span className="text-lg font-semibold text-success">{formatInr(price)}</span>
           {originalPrice && (
-            <span className="text-muted text-sm line-through">₹{originalPrice}</span>
+            <span className="text-muted text-sm line-through">{formatInr(originalPrice)}</span>
           )}
         </div>
 
         <div className="flex items-center justify-between space-x-2">
-          <div className="flex items-center border rounded-md">
+          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={decrementQuantity}
               disabled={selectedQuantity === 1 || isAddingToCart}
-              className="px-2 py-1 text-gray-600 disabled:text-gray-300"
+              className="px-2 py-1.5 bg-gray-50 text-gray-600 disabled:text-gray-300"
               aria-label="Decrease quantity"
             >
               <Minus size={14} />
             </button>
-            <span className="px-3 text-sm font-medium">{selectedQuantity} kg</span>
+            <span className="px-3 text-sm font-medium bg-white">{selectedQuantity} kg</span>
             <button
               onClick={incrementQuantity}
               disabled={stock.status === "out-of-stock" || selectedQuantity >= stock.available || isAddingToCart}
-              className="px-2 py-1 text-gray-600 disabled:text-gray-300"
+              className="px-2 py-1.5 bg-gray-50 text-gray-600 disabled:text-gray-300"
               aria-label="Increase quantity"
             >
               <Plus size={14} />

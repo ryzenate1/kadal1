@@ -3,608 +3,843 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { 
-  Package, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  Truck, 
-  ArrowLeft,
-  Eye,
-  Download,
-  RotateCcw,
-  Filter,
-  Search,
-  Calendar,
-  X
+import { fetchJson } from "@/lib/apiClient";
+import {
+  Package, Clock, CheckCircle, XCircle, Truck, ArrowLeft,
+  Download, RotateCcw, Search, X, ChevronDown, ChevronUp,
+  MapPin, Phone, Play, FileText, Eye, AlertCircle, Star,
+  Receipt, Info, Plus, Minus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+/* ── Types ── */
 interface OrderItem {
-  id: string;
-  productId: string;
-  productName: string;
-  productImage: string;
-  quantity: number;
-  price: number;
-  weight?: string;
+  id: string; productId: string; productName: string;
+  productImage: string; quantity: number; price: number; weight?: string;
 }
 
 interface Order {
-  id: string;
-  orderNumber: string;
+  id: string; orderNumber: string;
   status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  totalAmount: number;
-  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  paymentMethod: string;
-  trackingNumber?: string;
-  estimatedDelivery?: string;
-  createdAt: string;
-  updatedAt: string;
+  totalAmount: number; paymentStatus: string; paymentMethod: string;
+  trackingNumber?: string; estimatedDelivery?: string;
+  createdAt: string; updatedAt: string;
   items: OrderItem[];
-  address: {
-    name: string;
-    address: string;
-    city: string;
-    state: string;
-    pincode: string;
-  };
+  address: { name: string; address: string; city: string; state: string; pincode: string; phone?: string };
   pointsEarned: number;
+  processingVideoUrl?: string;
+  deliveryPersonPhone?: string;
+  deliveryPersonName?: string;
+  isDeliveryReached?: boolean;
 }
 
-const statusConfig = {
-  pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  confirmed: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle },
-  processing: { color: 'bg-purple-100 text-purple-800', icon: Package },
-  shipped: { color: 'bg-orange-100 text-orange-800', icon: Truck },
-  delivered: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-  cancelled: { color: 'bg-red-100 text-red-800', icon: XCircle }
+const STATUS_CONFIG = {
+  pending:    { label: 'Pending',    color: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-400',  icon: Clock },
+  confirmed:  { label: 'Confirmed',  color: 'bg-blue-100 text-blue-700',      dot: 'bg-blue-400',   icon: CheckCircle },
+  processing: { label: 'Processing', color: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-400', icon: Package },
+  shipped:    { label: 'Shipped',    color: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-400', icon: Truck },
+  delivered:  { label: 'Delivered',  color: 'bg-green-100 text-green-700',    dot: 'bg-green-400',  icon: CheckCircle },
+  cancelled:  { label: 'Cancelled',  color: 'bg-red-100 text-red-700',        dot: 'bg-red-400',    icon: XCircle },
 };
 
-export default function OrdersPage() {
-  const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+const FILTERS = ['all', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push('/auth/login?redirect=/account/orders');
-    }
-  }, [loading, isAuthenticated, router]);
-
-  // Fetch orders
-  const fetchOrders = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/api/user/orders');
-      if (response.ok) {
-        const ordersData = await response.json();
-        setOrders(ordersData);
-        setFilteredOrders(ordersData);
-      } else {
-        throw new Error('Failed to fetch orders');
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to load orders');
-      // Mock data for development
-      const mockOrders: Order[] = [
-        {
-          id: "ord_001",
-          orderNumber: "KT2025001",
-          status: "delivered",
-          totalAmount: 899,
-          paymentStatus: "paid",
-          paymentMethod: "UPI",
-          trackingNumber: "TRK123456789",
-          estimatedDelivery: "2025-06-10",
-          createdAt: "2025-06-08T10:30:00Z",
-          updatedAt: "2025-06-10T15:45:00Z",
-          pointsEarned: 45,
-          items: [
-            {
-              id: "item_001",
-              productId: "prod_001",
-              productName: "Fresh Pomfret",
-              productImage: "/images/fish/pomfret.jpg",
-              quantity: 1,
-              price: 549,
-              weight: "500g"
-            },
-            {
-              id: "item_002",
-              productId: "prod_002",
-              productName: "King Fish Steaks",
-              productImage: "/images/fish/kingfish.jpg",
-              quantity: 1,
-              price: 350,
-              weight: "300g"
-            }
-          ],
-          address: {
-            name: "Test User",
-            address: "123 Main Street, Apartment 4B",
-            city: "Chennai",
-            state: "Tamil Nadu",
-            pincode: "600001"
-          }
-        },
-        {
-          id: "ord_002",
-          orderNumber: "KT2025002",
-          status: "shipped",
-          totalAmount: 1299,
-          paymentStatus: "paid",
-          paymentMethod: "Credit Card",
-          trackingNumber: "TRK987654321",
-          estimatedDelivery: "2025-06-16",
-          createdAt: "2025-06-14T09:15:00Z",
-          updatedAt: "2025-06-15T11:20:00Z",
-          pointsEarned: 65,
-          items: [
-            {
-              id: "item_003",
-              productId: "prod_003",
-              productName: "Tiger Prawns",
-              productImage: "/images/fish/prawns.jpg",
-              quantity: 1,
-              price: 799,
-              weight: "500g"
-            },
-            {
-              id: "item_004",
-              productId: "prod_004",
-              productName: "Sea Bass",
-              productImage: "/images/fish/seabass.jpg",
-              quantity: 1,
-              price: 500,
-              weight: "400g"
-            }
-          ],
-          address: {
-            name: "Test User",
-            address: "123 Main Street, Apartment 4B",
-            city: "Chennai",
-            state: "Tamil Nadu",
-            pincode: "600001"
-          }
-        },
-        {
-          id: "ord_003",
-          orderNumber: "KT2025003",
-          status: "processing",
-          totalAmount: 650,
-          paymentStatus: "paid",
-          paymentMethod: "UPI",
-          estimatedDelivery: "2025-06-17",
-          createdAt: "2025-06-15T14:30:00Z",
-          updatedAt: "2025-06-15T14:30:00Z",
-          pointsEarned: 33,
-          items: [
-            {
-              id: "item_005",
-              productId: "prod_005",
-              productName: "Mackerel",
-              productImage: "/images/fish/mackerel.jpg",
-              quantity: 2,
-              price: 325,
-              weight: "250g each"
-            }
-          ],
-          address: {
-            name: "Test User",
-            address: "123 Main Street, Apartment 4B",
-            city: "Chennai",
-            state: "Tamil Nadu",
-            pincode: "600001"
-          }
-        }
-      ];
-      setOrders(mockOrders);
-      setFilteredOrders(mockOrders);
-    } finally {
-      setIsLoading(false);
-    }
+const PROGRESS_STEPS = ['confirmed', 'processing', 'shipped', 'delivered'];
+function OrderProgress({ status }: { status: Order['status'] }) {
+  if (status === 'cancelled') return null;
+  // Normalize backend/admin variants so progress always advances correctly.
+  const statusKey = String(status);
+  const normalizedStatus =
+    statusKey === 'pending'
+      ? 'confirmed'
+      : statusKey === 'in_progress'
+        ? 'processing'
+        : statusKey;
+  const idx = PROGRESS_STEPS.indexOf(normalizedStatus as (typeof PROGRESS_STEPS)[number]);
+  const STEP_LABELS: Record<string, string> = {
+    confirmed: 'Confirmed',
+    processing: 'Processing',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
   };
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchOrders();
-    }
-  }, [isAuthenticated]);
-
-  // Filter orders based on search and status
-  useEffect(() => {
-    let filtered = orders;
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(order =>
-        order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.items.some(item => 
-          item.productName.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      );
-    }
-
-    // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(order => order.status === statusFilter);
-    }    setFilteredOrders(filtered);
-  }, [orders, searchQuery, statusFilter]);
-
-  // Handle reorder
-  const handleReorder = async (order: Order) => {
-    try {
-      const response = await fetch('/api/user/reorder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ orderId: order.id })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(`Order #${result.newOrderId} has been created successfully!`);
-        // Refresh orders to show the new order
-        await fetchOrders();
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to reorder' }));
-        throw new Error(errorData.error || 'Failed to reorder');
-      }
-    } catch (error) {
-      console.error('Reorder error:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to reorder items");
-    }
-  };  // Handle order cancellation
-  const handleCancelOrder = async (orderId: string) => {
-    try {
-      const response = await fetch(`/api/user/orders/${orderId}/cancel`, {
-        method: 'PATCH'
-      });
-
-      if (response.ok) {
-        toast.success("Order cancelled successfully");
-        await fetchOrders(); // Refresh orders
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to cancel order' }));
-        throw new Error(errorData.error || 'Failed to cancel order');
-      }
-    } catch (error) {
-      console.error('Cancel order error:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to cancel order");
-    }
-  };
-
-  // Handle download invoice
-  const handleDownloadInvoice = async (orderId: string) => {
-    try {
-      const response = await fetch(`/api/user/orders/${orderId}/invoice`);
-      
-      if (response.ok) {
-        const htmlContent = await response.text();
-        
-        // Create a new window/tab for the invoice
-        const invoiceWindow = window.open('', '_blank');
-        if (invoiceWindow) {
-          invoiceWindow.document.write(htmlContent);
-          invoiceWindow.document.close();
-          toast.success("Invoice opened in new tab - you can print or save as PDF");
-        } else {
-          // Fallback: Create blob and download
-          const blob = new Blob([htmlContent], { type: 'text/html' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `invoice-${orderId}.html`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          toast.success("Invoice downloaded successfully");
-        }
-      } else {
-        throw new Error('Failed to generate invoice');
-      }
-    } catch (error) {
-      console.error('Download invoice error:', error);
-      toast.error("Failed to download invoice");
-    }
-  };
-
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  if (loading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center space-x-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="p-2"
+    <div className="my-3">
+      <div className="flex items-center gap-1">
+        {PROGRESS_STEPS.map((s, i) => (
+          <div key={s} className="flex items-center flex-1">
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 transition-all ${i <= idx ? 'bg-red-500 text-white shadow-sm shadow-red-200' : 'bg-gray-100 text-gray-300'}`}>
+              {i <= idx ? '✓' : i + 1}
+            </div>
+            {i < PROGRESS_STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-0.5 rounded`} style={{ backgroundColor: i < idx ? '#f87171' : '#f3f4f6' }} />
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-4 gap-1">
+        {PROGRESS_STEPS.map((s, i) => (
+          <p
+            key={`${s}-label`}
+            className={`text-[10px] text-center font-medium ${i <= idx ? 'text-red-600' : 'text-gray-400'}`}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
-            <p className="text-gray-600">Track and manage your orders</p>
+            {STEP_LABELS[s]}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isImageMedia(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
+}
+
+function MediaModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const imageFile = isImageMedia(url);
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-black rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-3 bg-black/50">
+          <span className="text-white font-medium text-sm">Order Processing Media</span>
+          <button onClick={onClose} className="text-white/70 hover:text-white p-1"><X className="h-5 w-5" /></button>
+        </div>
+        {imageFile ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="Order processing media" className="w-full object-contain" style={{ maxHeight: '60vh' }} />
+        ) : (
+          <video src={url} controls autoPlay className="w-full" style={{ maxHeight: '60vh' }}>
+            Your browser does not support video.
+          </video>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Details Modal ── */
+function DetailsModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const subtotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const delivery = order.totalAmount - subtotal > 0 ? order.totalAmount - subtotal : 0;
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-gray-200 overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="p-5 border-b border-gray-200 bg-white flex-shrink-0">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-widest">Order Details</p>
+              <p className="font-bold text-xl mt-0.5 text-gray-900">#{order.orderNumber}</p>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-600" /></button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_CONFIG[order.status]?.color}`}>
+              {STATUS_CONFIG[order.status]?.label}
+            </span>
+            <span className="text-gray-500 text-xs">{new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
           </div>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search orders by number or product..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Orders</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="shipped">Shipped</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          {/* Progress */}
+          <OrderProgress status={order.status} />
 
-        {/* Orders List */}
-        {filteredOrders.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
-              <p className="text-gray-600 mb-4">
-                {searchQuery || statusFilter !== "all" 
-                  ? "Try adjusting your search or filter criteria"
-                  : "You haven't placed any orders yet"
-                }
+          {/* Items */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Items Ordered</p>
+            <div className="space-y-2">
+              {order.items.map(item => (
+                <div key={item.id} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl">
+                  {item.productImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.productImage} alt={item.productName} className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm truncate">{item.productName}</p>
+                    <p className="text-xs text-gray-400">{item.weight} × {item.quantity}</p>
+                  </div>
+                  <p className="font-semibold text-gray-900 text-sm flex-shrink-0">₹{(item.price * item.quantity).toFixed(0)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pricing */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm">
+            <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{subtotal.toFixed(0)}</span></div>
+            {delivery > 0 && <div className="flex justify-between text-gray-500"><span>Delivery</span><span>₹{delivery.toFixed(0)}</span></div>}
+            {order.pointsEarned > 0 && <div className="flex justify-between text-green-600 text-xs"><span>Points Earned</span><span>+{order.pointsEarned} pts</span></div>}
+            <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
+              <span>Total</span><span>₹{order.totalAmount.toFixed(0)}</span>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Delivery Address</p>
+            <div className="flex gap-2 bg-gray-50 rounded-xl p-3">
+              <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-gray-900">{order.address.name}</p>
+                <p className="text-gray-500">{order.address.address}</p>
+                <p className="text-gray-500">{order.address.city}, {order.address.state} – {order.address.pincode}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment */}
+          <div className="flex gap-3">
+            <div className="flex-1 bg-gray-50 rounded-xl p-3 text-sm">
+              <p className="text-xs text-gray-400 mb-0.5">Payment Method</p>
+              <p className="font-semibold text-gray-900 capitalize">{order.paymentMethod}</p>
+              <p className={`text-xs capitalize ${order.paymentStatus === 'paid' ? 'text-green-600' : 'text-amber-600'}`}>{order.paymentStatus}</p>
+            </div>
+            {order.trackingNumber && (
+              <div className="flex-1 bg-gray-50 rounded-xl p-3 text-sm">
+                <p className="text-xs text-gray-400 mb-0.5">Tracking ID</p>
+                <p className="font-semibold text-gray-900 font-mono text-xs">{order.trackingNumber}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Cancel Dialog ── */
+const CANCEL_REASONS = [
+  { id: 'accidentally_ordered', label: 'Accidentally ordered' },
+  { id: 'wrong_quantity', label: 'Want to change quantity' },
+  { id: 'change_item', label: 'Want to order something else' },
+  { id: 'late_delivery', label: 'Delivery time too long' },
+  { id: 'found_cheaper', label: 'Found a better price elsewhere' },
+  { id: 'other', label: 'Other reason' },
+];
+
+function CancelDialog({ order, onConfirm, onClose }: {
+  order: Order;
+  onConfirm: (reason: string, newQuantities?: Record<string, number>) => void;
+  onClose: () => void;
+}) {
+  const [selectedReason, setSelectedReason] = useState('');
+  const [showQuantity, setShowQuantity] = useState(false);
+  const [quantities, setQuantities] = useState<Record<string, number>>(
+    Object.fromEntries(order.items.map(i => [i.id, i.quantity]))
+  );
+
+  const hasQuantityChange = Object.entries(quantities).some(
+    ([id, qty]) => qty !== order.items.find(i => i.id === id)?.quantity
+  );
+
+  const extraTotal = order.items.reduce((sum, item) => {
+    const extra = (quantities[item.id] || item.quantity) - item.quantity;
+    return sum + (extra > 0 ? extra * item.price : 0);
+  }, 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="bg-red-50 border-b border-red-100 p-5">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-gray-900 text-lg">Cancel Order?</h3>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-red-100"><X className="h-5 w-5 text-gray-500" /></button>
+          </div>
+          <p className="text-sm text-gray-500 mt-1">Order #{order.orderNumber}</p>
+        </div>
+
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Hint box */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex gap-2">
+            <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700">If you want to change quantity, you can increase it and pay only the difference. No need to cancel!</p>
+          </div>
+
+          {/* Reasons */}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-2">Why are you cancelling?</p>
+            <div className="space-y-2">
+              {CANCEL_REASONS.map(r => (
+                <label key={r.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${selectedReason === r.id ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" name="cancel_reason" value={r.id} checked={selectedReason === r.id}
+                    onChange={() => {
+                      setSelectedReason(r.id);
+                      if (r.id === 'wrong_quantity') setShowQuantity(true);
+                      else setShowQuantity(false);
+                    }}
+                    className="text-red-600" />
+                  <span className="text-sm text-gray-700">{r.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Quantity increase section */}
+          {showQuantity && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-blue-800">Adjust Quantity Instead</p>
+              <p className="text-xs text-blue-600">Increase quantity and pay only the extra amount — no need to cancel!</p>
+              {order.items.map(item => (
+                <div key={item.id} className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
+                    <p className="text-xs text-gray-500">{item.weight} × ₹{item.price}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setQuantities(q => ({ ...q, [item.id]: Math.max(item.quantity, (q[item.id] || item.quantity) - 1) }))}
+                      className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300">
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <span className="w-6 text-center font-semibold text-sm">{quantities[item.id] || item.quantity}</span>
+                    <button onClick={() => setQuantities(q => ({ ...q, [item.id]: (q[item.id] || item.quantity) + 1 }))}
+                      className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700">
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {extraTotal > 0 && (
+                <div className="flex justify-between items-center pt-2 border-t border-blue-200">
+                  <span className="text-sm font-semibold text-blue-800">Extra to pay</span>
+                  <span className="font-bold text-blue-900">₹{extraTotal.toFixed(0)}</span>
+                </div>
+              )}
+              {hasQuantityChange && (
+                <Button onClick={() => onConfirm('wrong_quantity', quantities)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl h-10 text-sm">
+                  Update Quantity & Pay ₹{extraTotal.toFixed(0)}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-gray-100 flex gap-3">
+          <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl h-11">
+            Keep Order
+          </Button>
+          <Button disabled={!selectedReason}
+            onClick={() => selectedReason && onConfirm(selectedReason)}
+            className="flex-1 bg-red-600 hover:bg-red-700 rounded-xl h-11 disabled:opacity-50">
+            Cancel Order
+          </Button>
+        </div>
+        <p className="text-center text-xs text-gray-400 pb-4 px-5">You can also <button onClick={onClose} className="text-blue-500 underline">skip</button> and contact support instead.</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── PDF Invoice ── */
+function generateInvoicePDF(order: Order) {
+  const subtotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const delivery = order.totalAmount - subtotal > 0 ? order.totalAmount - subtotal : 0;
+  const date = new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #fff; color: #1a1a2e; }
+  .page { max-width: 600px; margin: 0 auto; padding: 0; }
+  .header { background: #f9fafb; color: #111827; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; }
+  .brand { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; }
+  .brand-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
+  .invoice-label { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #9ca3af; margin-top: 20px; }
+  .invoice-num { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .invoice-date { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .body { padding: 28px 32px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: #9ca3af; font-weight: 600; margin-bottom: 10px; }
+  .address-box { background: #f9fafb; border-radius: 12px; padding: 14px; border: 1px solid #f3f4f6; }
+  .address-name { font-weight: 700; font-size: 15px; }
+  .address-detail { color: #6b7280; font-size: 13px; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; text-align: left; padding: 8px 0; border-bottom: 2px solid #f3f4f6; font-weight: 600; }
+  thead th:last-child { text-align: right; }
+  tbody tr { border-bottom: 1px solid #f9fafb; }
+  tbody td { padding: 10px 0; font-size: 13px; color: #374151; }
+  tbody td:last-child { text-align: right; font-weight: 600; }
+  .item-weight { font-size: 11px; color: #9ca3af; }
+  .totals { background: #f9fafb; border-radius: 12px; padding: 16px; }
+  .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #6b7280; }
+  .total-final { display: flex; justify-content: space-between; padding: 12px 0 4px; border-top: 2px solid #e5e7eb; margin-top: 8px; font-size: 18px; font-weight: 900; color: #111827; }
+  .payment-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: #f0fdf4; border-radius: 10px; border: 1px solid #dcfce7; }
+  .payment-method { font-size: 13px; font-weight: 600; text-transform: capitalize; }
+  .payment-status { font-size: 12px; font-weight: 700; color: #16a34a; text-transform: capitalize; padding: 3px 10px; background: #dcfce7; border-radius: 20px; }
+  .footer { background: #f9fafb; padding: 20px 32px; border-top: 1px solid #f3f4f6; text-align: center; }
+  .footer-text { font-size: 12px; color: #9ca3af; }
+  .footer-brand { font-size: 13px; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-paid { background: #dcfce7; color: #16a34a; }
+  .badge-pending { background: #fef3c7; color: #d97706; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="brand">Kadal Thunai</div>
+    <div class="brand-sub">Fresh Seafood, Delivered Fresh</div>
+    <div class="invoice-label">Invoice</div>
+    <div class="invoice-num">#${order.orderNumber}</div>
+    <div class="invoice-date">${date}</div>
+  </div>
+  <div class="body">
+    <div class="section">
+      <div class="section-title">Billed To</div>
+      <div class="address-box">
+        <div class="address-name">${order.address.name}</div>
+        <div class="address-detail">${order.address.address}</div>
+        <div class="address-detail">${order.address.city}, ${order.address.state} – ${order.address.pincode}</div>
+        ${order.address.phone ? `<div class="address-detail">${order.address.phone}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Items Ordered</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th style="text-align:center">Qty</th>
+            <th style="text-align:right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${order.items.map(item => `
+          <tr>
+            <td>
+              <div style="font-weight:600">${item.productName}</div>
+              <div class="item-weight">${item.weight || ''}</div>
+            </td>
+            <td style="text-align:center">×${item.quantity}</td>
+            <td>₹${(item.price * item.quantity).toFixed(0)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="totals">
+        <div class="total-row"><span>Subtotal</span><span>₹${subtotal.toFixed(0)}</span></div>
+        ${delivery > 0 ? `<div class="total-row"><span>Delivery Charges</span><span>₹${delivery.toFixed(0)}</span></div>` : ''}
+        <div class="total-row"><span>Discount</span><span style="color:#16a34a">₹0</span></div>
+        <div class="total-final"><span>Total Paid</span><span>₹${order.totalAmount.toFixed(0)}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Payment Details</div>
+      <div class="payment-row">
+        <div>
+          <div class="payment-method">${order.paymentMethod}</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px">Payment Method</div>
+        </div>
+        <span class="badge ${order.paymentStatus === 'paid' ? 'badge-paid' : 'badge-pending'}">${order.paymentStatus.toUpperCase()}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand">Kadal Thunai</div>
+    <div class="footer-text">Thank you for your order! For support: support@kadalthunai.com | +91 98765 43210</div>
+    <div class="footer-text" style="margin-top:6px">This is a computer-generated invoice. No signature required.</div>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (win) {
+    win.onload = () => {
+      setTimeout(() => {
+        win.print();
+        URL.revokeObjectURL(url);
+      }, 500);
+    };
+  }
+  toast.success('Invoice opened — use Print > Save as PDF');
+}
+
+/* ── Invoice modal ── */
+function InvoiceModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const subtotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const delivery = order.totalAmount - subtotal > 0 ? order.totalAmount - subtotal : 0;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-gray-200 overflow-hidden">
+        <div className="p-5 border-b border-gray-200 bg-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-widest">Invoice</p>
+              <p className="font-bold text-xl mt-0.5 text-gray-900">#{order.orderNumber}</p>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100"><X className="h-4 w-4 text-gray-600" /></button>
+          </div>
+          <p className="text-gray-500 text-xs mt-3">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Deliver To</p>
+            <p className="font-semibold text-gray-900 text-sm">{order.address.name}</p>
+            <p className="text-xs text-gray-500">{order.address.address}, {order.address.city}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Items</p>
+            <div className="space-y-2">
+              {order.items.map(item => (
+                <div key={item.id} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{item.productName}</p>
+                    <p className="text-xs text-gray-400">{item.weight} × {item.quantity}</p>
+                  </div>
+                  <p className="font-semibold text-gray-900 text-sm">₹{(item.price * item.quantity).toFixed(0)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-sm">
+            <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{subtotal.toFixed(0)}</span></div>
+            {delivery > 0 && <div className="flex justify-between text-gray-500"><span>Delivery</span><span>₹{delivery.toFixed(0)}</span></div>}
+            <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
+              <span>Total</span><span>₹{order.totalAmount.toFixed(0)}</span>
+            </div>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Payment: <strong className="text-gray-700 capitalize">{order.paymentMethod}</strong></span>
+            <span className={`font-semibold capitalize ${order.paymentStatus === 'paid' ? 'text-green-600' : 'text-amber-600'}`}>{order.paymentStatus}</span>
+          </div>
+          <Button onClick={() => generateInvoicePDF(order)} className="w-full bg-red-600 hover:bg-red-700 rounded-xl h-11">
+            <Download className="h-4 w-4 mr-2" />Download PDF Invoice
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Order card ── */
+function OrderCard({ order, onReorder, onCancelRequest }: {
+  order: Order; onReorder: () => void; onCancelRequest: () => void;
+}) {
+  const [showVideo, setShowVideo] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formatTime = (d: string) => new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  return (
+    <>
+      <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-lg shadow-black/5 overflow-hidden">
+        <div className="p-4 pb-0">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <p className="font-bold text-gray-900 text-base">#{order.orderNumber}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{formatDate(order.createdAt)} at {formatTime(order.createdAt)}</p>
+            </div>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+                {status.label}
+              </span>
+              <span className="font-bold text-gray-900">₹{order.totalAmount.toFixed(0)}</span>
+            </div>
+          </div>
+
+          <OrderProgress status={order.status} />
+
+          <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+            {order.items.slice(0, 3).map(item => (
+              <div key={item.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 flex-shrink-0">
+                {item.productImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.productImage} alt={item.productName} className="w-8 h-8 rounded-lg object-cover"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                )}
+                <div>
+                  <p className="text-xs font-medium text-gray-800 max-w-[100px] truncate">{item.productName}</p>
+                  <p className="text-xs text-gray-400">×{item.quantity} {item.weight || ''}</p>
+                </div>
+              </div>
+            ))}
+            {order.items.length > 3 && (
+              <div className="flex items-center justify-center bg-gray-50 rounded-xl px-3 py-2 flex-shrink-0">
+                <span className="text-xs text-gray-500 font-medium">+{order.items.length - 3} more</span>
+              </div>
+            )}
+          </div>
+
+          {order.processingVideoUrl && (
+            <button onClick={() => setShowVideo(true)}
+              className="w-full flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3 mb-3 hover:bg-violet-100 transition-colors">
+              <div className="p-2 bg-violet-600 rounded-xl"><Play className="h-4 w-4 text-white" /></div>
+              <div className="text-left">
+                <p className="font-semibold text-violet-800 text-sm">View Processing Media</p>
+                <p className="text-xs text-violet-500">Uploaded by Kadal team</p>
+              </div>
+            </button>
+          )}
+          {order.status === 'processing' && !order.processingVideoUrl && (
+            <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-2xl px-4 py-3 mb-3">
+              <div className="p-2 bg-violet-200 rounded-xl"><Package className="h-4 w-4 text-violet-500" /></div>
+              <div>
+                <p className="font-semibold text-violet-800 text-sm">Being Processed</p>
+                <p className="text-xs text-violet-400">Video will be available soon</p>
+              </div>
+            </div>
+          )}
+
+          {(order.status === 'shipped' || order.deliveryPersonName || order.deliveryPersonPhone) && (
+            <div className="bg-orange-50 border border-orange-100 rounded-2xl px-4 py-3 mb-3">
+              <p className="font-semibold text-orange-800 text-sm mb-1">
+                <Truck className="h-3.5 w-3.5 inline mr-1" />Out for Delivery
               </p>
-              <Button onClick={() => router.push('/')} className="bg-red-600 hover:bg-red-700">
-                Start Shopping
-              </Button>
-            </CardContent>
-          </Card>
+              {order.deliveryPersonName && (
+                <p className="text-xs text-orange-700 mb-1">Partner: {order.deliveryPersonName}</p>
+              )}
+              {order.deliveryPersonPhone ? (
+                <a href={`tel:${order.deliveryPersonPhone}`}
+                  className="inline-flex items-center gap-2 bg-orange-600 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-orange-700 transition-colors mt-1">
+                  <Phone className="h-3.5 w-3.5" />Call {order.deliveryPersonName || 'Delivery Person'}
+                </a>
+              ) : <p className="text-xs text-orange-500">Delivery contact not assigned yet</p>}
+              {order.isDeliveryReached && (
+                <p className="text-xs text-green-700 mt-2 font-medium">Delivery partner has reached your location.</p>
+              )}
+            </div>
+          )}
+
+          {order.estimatedDelivery && !['delivered', 'cancelled'].includes(order.status) && (
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Expected by <strong className="text-gray-700">{new Date(order.estimatedDelivery).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Action bar ── */}
+        <div className="px-4 py-3 flex flex-wrap gap-2 border-t border-gray-50">
+          <Button variant="outline" size="sm" onClick={() => setShowInvoice(true)}
+            className="rounded-xl text-xs h-8 gap-1.5 border-gray-200">
+            <Receipt className="h-3.5 w-3.5" />Invoice
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => setShowDetails(true)}
+            className="rounded-xl text-xs h-8 gap-1.5 border-gray-200 text-blue-600 border-blue-200 hover:bg-blue-50">
+            <Info className="h-3.5 w-3.5" />Details
+          </Button>
+
+          {order.status === 'delivered' && (
+            <Button variant="outline" size="sm" onClick={onReorder}
+              className="rounded-xl text-xs h-8 gap-1.5 border-gray-200">
+              <RotateCcw className="h-3.5 w-3.5" />Reorder
+            </Button>
+          )}
+
+          {['pending', 'confirmed'].includes(order.status) && (
+            <Button variant="outline" size="sm" onClick={onCancelRequest}
+              className="rounded-xl text-xs h-8 gap-1.5 border-red-200 text-red-600 hover:bg-red-50">
+              <XCircle className="h-3.5 w-3.5" />Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {showVideo && order.processingVideoUrl && <MediaModal url={order.processingVideoUrl} onClose={() => setShowVideo(false)} />}
+      {showInvoice && <InvoiceModal order={order} onClose={() => setShowInvoice(false)} />}
+      {showDetails && <DetailsModal order={order} onClose={() => setShowDetails(false)} />}
+    </>
+  );
+}
+
+/* ── Main page ── */
+export default function OrdersPage() {
+  const router = useRouter();
+  const { isAuthenticated, loading, user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<typeof FILTERS[number]>('all');
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) router.push('/auth/login?redirect=/account/orders');
+  }, [loading, isAuthenticated, router]);
+
+  const fetchOrders = async () => {
+    if (!isAuthenticated) return;
+    setPageLoading(true);
+    try {
+      const data = await fetchJson<Order[]>('/api/user/orders', {
+        cache: 'no-store',
+      });
+      setOrders(Array.isArray(data) ? data : []);
+    } catch { toast.error('Failed to load orders'); }
+    finally { setPageLoading(false); }
+  };
+
+  useEffect(() => { if (isAuthenticated) fetchOrders(); }, [isAuthenticated, user?.id]);
+
+  // Keep customer orders in sync with admin updates (status, delivery, video, etc.)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = window.setInterval(() => {
+      // Avoid unnecessary calls when the tab is in background.
+      if (document.visibilityState === 'visible') {
+        fetchOrders();
+      }
+    }, 15000);
+
+    const onFocus = () => fetchOrders();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [isAuthenticated, user?.id]);
+
+  const handleReorder = async (order: Order) => {
+    try {
+      await fetchJson('/api/user/reorder', {
+        method: 'POST',
+        body: { orderId: order.id },
+      });
+      toast.success('Items added to cart!');
+      router.push('/cart');
+    } catch { toast.error('Failed to reorder'); }
+  };
+
+  const handleCancelConfirm = async (orderId: string, reason: string, newQuantities?: Record<string, number>) => {
+    try {
+      if (reason === 'wrong_quantity' && newQuantities) {
+        const updateRes = await fetch(`/api/user/orders/${orderId}/update-quantities`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '', 'x-user-name': user?.name || '', 'x-user-email': user?.email || '', 'x-user-phone': user?.phoneNumber || '' },
+          body: JSON.stringify({ quantities: newQuantities }),
+        });
+        const updatePayload = await updateRes.json().catch(() => ({}));
+        if (!updateRes.ok) {
+          throw new Error(updatePayload?.error || 'Failed to update quantity');
+        }
+        toast.success(`Quantity updated. Extra charge: ₹${Number(updatePayload.additionalAmount || 0).toFixed(0)}`);
+        setCancelTarget(null);
+        await fetchOrders();
+        return;
+      }
+
+      const res = await fetch(`/api/user/orders/${orderId}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '', 'x-user-name': user?.name || '', 'x-user-email': user?.email || '', 'x-user-phone': user?.phoneNumber || '' },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('Order cancelled successfully');
+      setCancelTarget(null);
+      await fetchOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to cancel order';
+      toast.error(message);
+    }
+  };
+
+  const filtered = orders.filter(o => {
+    const matchFilter = filter === 'all' || o.status === filter;
+    const matchSearch = !search.trim() || o.orderNumber.toLowerCase().includes(search.toLowerCase())
+      || o.items.some(i => i.productName.toLowerCase().includes(search.toLowerCase()));
+    return matchFilter && matchSearch;
+  });
+
+  if (loading || pageLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50">
+      <div className="animate-spin rounded-full h-10 w-10 border-2 border-red-500 border-t-transparent" />
+    </div>
+  );
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50/60 via-white to-orange-50/40">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute -top-32 -right-32 w-96 h-96 bg-red-200/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-32 w-80 h-80 bg-orange-100/20 rounded-full blur-3xl" />
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.back()}
+            className="p-2 rounded-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-sm hover:bg-white">
+            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
+            <p className="text-sm text-gray-500">{orders.length} total orders</p>
+          </div>
+        </div>
+
+        <div className="relative mb-4">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by order ID or product…"
+            className="pl-10 rounded-2xl bg-white/80 backdrop-blur-xl border-white/60 shadow-sm h-11" />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <X className="h-4 w-4 text-gray-400" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
+          {FILTERS.map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all capitalize ${filter === f ? 'bg-red-600 text-white shadow-sm' : 'bg-white/80 text-gray-500 border border-gray-200 hover:border-gray-300'}`}>
+              {f === 'all' ? `All (${orders.length})` : `${STATUS_CONFIG[f as keyof typeof STATUS_CONFIG]?.label || f} (${orders.filter(o => o.status === f).length})`}
+            </button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-10 text-center shadow-lg">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Package className="h-8 w-8 text-gray-300" />
+            </div>
+            <h3 className="font-bold text-gray-900 mb-1">No orders found</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {search || filter !== 'all' ? 'Try adjusting your search or filter' : "You haven't placed any orders yet"}
+            </p>
+            <Button onClick={() => router.push('/')} className="bg-red-600 hover:bg-red-700 rounded-2xl">
+              Start Shopping
+            </Button>
+          </div>
         ) : (
           <div className="space-y-4">
-            {filteredOrders.map((order) => {
-              const StatusIcon = statusConfig[order.status].icon;
-              
-              return (
-                <Card key={order.id} className="overflow-hidden">
-                  <CardHeader className="pb-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div>
-                        <CardTitle className="text-lg">Order #{order.orderNumber}</CardTitle>
-                        <p className="text-sm text-gray-600">
-                          Placed on {formatDate(order.createdAt)}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:items-end gap-2">
-                        <Badge className={statusConfig[order.status].color}>
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </Badge>
-                        <span className="text-lg font-bold text-gray-900">₹{order.totalAmount}</span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pt-0">
-                    {/* Order Items */}
-                    <div className="space-y-3 mb-4">
-                      {order.items.map((item) => (
-                        <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <img
-                            src={item.productImage}
-                            alt={item.productName}
-                            className="h-12 w-12 object-cover rounded-lg"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/images/fish/placeholder.jpg';
-                            }}
-                          />
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{item.productName}</h4>
-                            <p className="text-sm text-gray-600">
-                              {item.weight} × {item.quantity} = ₹{item.price * item.quantity}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Order Details */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
-                      <div>
-                        <span className="font-medium">Payment:</span> {order.paymentMethod} • {order.paymentStatus}
-                      </div>
-                      {order.trackingNumber && (
-                        <div>
-                          <span className="font-medium">Tracking:</span> {order.trackingNumber}
-                        </div>
-                      )}
-                      {order.estimatedDelivery && (
-                        <div>
-                          <span className="font-medium">Estimated Delivery:</span> {formatDate(order.estimatedDelivery)}
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-medium">Points Earned:</span> {order.pointsEarned}
-                      </div>
-                    </div>                    {/* Actions */}
-                    <div className="flex flex-wrap gap-2 pt-4 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedOrder(order)}
-                        className="flex items-center space-x-1"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>View Details</span>
-                      </Button>
-                      
-                      {['delivered', 'shipped'].includes(order.status) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadInvoice(order.id)}
-                          className="flex items-center space-x-1 text-blue-600 hover:text-blue-700"
-                        >
-                          <Download className="h-4 w-4" />
-                          <span>Invoice</span>
-                        </Button>
-                      )}
-                      
-                      {order.status === 'delivered' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReorder(order)}
-                          className="flex items-center space-x-1"
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                          <span>Reorder</span>
-                        </Button>
-                      )}
-                      
-                      {['pending', 'confirmed'].includes(order.status) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCancelOrder(order.id)}
-                          className="flex items-center space-x-1 text-red-600 hover:text-red-700"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          <span>Cancel</span>
-                        </Button>
-                      )}
-                      
-                      {order.trackingNumber && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/track/${order.trackingNumber}`)}
-                          className="flex items-center space-x-1"
-                        >
-                          <Truck className="h-4 w-4" />
-                          <span>Track</span>
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filtered.map(order => (
+              <OrderCard key={order.id} order={order}
+                onReorder={() => handleReorder(order)}
+                onCancelRequest={() => setCancelTarget(order)} />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Order Details Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Order Details</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedOrder(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Order Info */}
-              <div>
-                <h3 className="font-semibold mb-2">Order Information</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>Order Number: {selectedOrder.orderNumber}</div>
-                  <div>Status: {selectedOrder.status}</div>
-                  <div>Total: ₹{selectedOrder.totalAmount}</div>
-                  <div>Payment: {selectedOrder.paymentMethod}</div>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div>
-                <h3 className="font-semibold mb-2">Items</h3>
-                <div className="space-y-2">
-                  {selectedOrder.items.map((item) => (
-                    <div key={item.id} className="flex justify-between p-2 bg-gray-50 rounded">
-                      <div>
-                        <div className="font-medium">{item.productName}</div>
-                        <div className="text-sm text-gray-600">{item.weight} × {item.quantity}</div>
-                      </div>
-                      <div className="font-medium">₹{item.price * item.quantity}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Delivery Address */}
-              <div>
-                <h3 className="font-semibold mb-2">Delivery Address</h3>
-                <div className="p-3 bg-gray-50 rounded text-sm">
-                  <div>{selectedOrder.address.name}</div>
-                  <div>{selectedOrder.address.address}</div>
-                  <div>{selectedOrder.address.city}, {selectedOrder.address.state} {selectedOrder.address.pincode}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {cancelTarget && (
+        <CancelDialog
+          order={cancelTarget}
+          onConfirm={(reason, newQuantities) => handleCancelConfirm(cancelTarget.id, reason, newQuantities)}
+          onClose={() => setCancelTarget(null)}
+        />
       )}
     </div>
   );

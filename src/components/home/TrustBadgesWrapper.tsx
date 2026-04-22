@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import TrustBadges from './TrustBadgesNew';
+import TrustBadges from './TrustBadges';
 import { Fish, Clock, AlertCircle } from 'lucide-react';
 
 interface FishCardProps {

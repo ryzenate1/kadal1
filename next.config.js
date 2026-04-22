@@ -4,10 +4,12 @@ const nextConfig = {
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
   },
   eslint: {
-    // Skip ESLint during production builds to avoid incompatible option errors
     ignoreDuringBuilds: true,
   },
-
+  typescript: {
+    // Type errors are caught in dev; don't block production builds
+    ignoreBuildErrors: false,
+  },
   images: {
     unoptimized: true,
     domains: [
@@ -15,35 +17,24 @@ const nextConfig = {
       "images.unsplash.com",
       "ext.same-assets.com",
       "ugc.same-assets.com",
+      "img.clerk.com",
+      "images.clerk.dev",
     ],
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "source.unsplash.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ext.same-assets.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ugc.same-assets.com",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "source.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
+      { protocol: "https", hostname: "ext.same-assets.com", pathname: "/**" },
+      { protocol: "https", hostname: "ugc.same-assets.com", pathname: "/**" },
+      { protocol: "https", hostname: "img.clerk.com", pathname: "/**" },
+      { protocol: "https", hostname: "images.clerk.dev", pathname: "/**" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
     ],
   },
   async redirects() {
     return [
       {
         source: '/catagory',
-        destination: '/categoriesmobile',
+        destination: '/category',
         permanent: true,
       },
       {
@@ -52,9 +43,9 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/category',
-        destination: '/categoriesmobile',
-        permanent: false,
+        source: '/categoriesmobile',
+        destination: '/categories',
+        permanent: true,
       },
     ];
   },

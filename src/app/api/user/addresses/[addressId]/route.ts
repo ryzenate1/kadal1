@@ -1,140 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-interface RouteParams {
-  params: Promise<{
-    addressId: string;
-  }>;
+export const runtime = 'nodejs';
+
+function isAuthenticatedRequest(req: NextRequest) {
+  const reqUser = getRequestUser(req);
+  return Boolean(reqUser.id || reqUser.authUserId || reqUser.email || reqUser.accessToken);
 }
 
-// Mock addresses data (shared with main route)
-let mockAddresses = [
-  {
-    id: "addr_001",
-    name: "Home",
-    address: "123 Main Street, Apartment 4B",
-    city: "Chennai",
-    state: "Tamil Nadu",
-    pincode: "600001",
-    type: "home",
-    isDefault: true
-  },
-  {
-    id: "addr_002",
-    name: "Office",
-    address: "456 Tech Park, 3rd Floor",
-    city: "Chennai",
-    state: "Tamil Nadu",
-    pincode: "600113",
-    type: "work",
-    isDefault: false
-  }
-];
+type AddressRow = {
+  id: string;
+  name: string;
+  phone_number: string | null;
+  address: string;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  type: 'home' | 'work' | 'other';
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
-export async function PUT(
-  request: NextRequest,
-  context: RouteParams
+function mapAddress(row: AddressRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    phoneNumber: row.phone_number || '',
+    address: row.address,
+    city: row.city || '',
+    state: row.state || '',
+    pincode: row.pincode || '',
+    type: row.type || 'home',
+    isDefault: !!row.is_default,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ addressId: string }> }
 ) {
   try {
-    const params = await context.params;
-    const { addressId } = params;
-    const body = await request.json();
+    if (!isAuthenticatedRequest(req)) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
 
-    if (!addressId) {
-      return NextResponse.json(
-        { error: 'Address ID is required' },
-        { status: 400 }
+    const body = await req.json();
+    const { addressId } = await params;
+
+    const updated = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+
+      if (body.isDefault === true) {
+        await client.query(`UPDATE addresses SET is_default = FALSE WHERE profile_id = $1`, [profile.id]);
+      }
+
+      const result = await client.query(
+        `UPDATE addresses
+         SET
+          name = COALESCE($3, name),
+          phone_number = COALESCE($4, phone_number),
+          address = COALESCE($5, address),
+          city = COALESCE($6, city),
+          state = COALESCE($7, state),
+          pincode = COALESCE($8, pincode),
+          type = COALESCE($9, type),
+          is_default = COALESCE($10, is_default),
+          updated_at = NOW()
+         WHERE id = $1 AND profile_id = $2
+         RETURNING id, name, phone_number, address, city, state, pincode, type, is_default, created_at, updated_at`,
+        [
+          addressId,
+          profile.id,
+          body.name ?? null,
+          body.phoneNumber ?? null,
+          body.address ?? null,
+          body.city ?? null,
+          body.state ?? null,
+          body.pincode ?? null,
+          body.type ?? null,
+          typeof body.isDefault === 'boolean' ? body.isDefault : null,
+        ]
       );
+
+      return result.rows[0] ? mapAddress(result.rows[0] as AddressRow) : null;
+    });
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Address not found' }, { status: 404 });
     }
 
-    // Validate required fields
-    const { name, address, city, state, pincode, type = 'home', isDefault = false } = body;
-    
-    if (!name || !address || !city || !state || !pincode) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Find the address to update
-    const addressIndex = mockAddresses.findIndex(addr => addr.id === addressId);
-    
-    if (addressIndex === -1) {
-      return NextResponse.json(
-        { error: 'Address not found' },
-        { status: 404 }
-      );
-    }
-
-    // If this is set as default, make all others non-default
-    if (isDefault) {
-      mockAddresses = mockAddresses.map(addr => ({ ...addr, isDefault: false }));
-    }
-
-    // Update the address
-    const updatedAddress = {
-      ...mockAddresses[addressIndex],
-      name,
-      address,
-      city,
-      state,
-      pincode,
-      type,
-      isDefault
-    };
-
-    mockAddresses[addressIndex] = updatedAddress;
-
-    return NextResponse.json(updatedAddress);
+    return NextResponse.json(updated);
   } catch (error) {
-    console.error('Error updating address:', error);
-    return NextResponse.json(
-      { error: 'Failed to update address' },
-      { status: 500 }
-    );
+    console.error('Address PATCH failed:', error);
+    return NextResponse.json({ error: 'Failed to update address' }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
-  context: RouteParams
+  req: NextRequest,
+  { params }: { params: Promise<{ addressId: string }> }
 ) {
   try {
-    const params = await context.params;
-    const { addressId } = params;
+    if (!isAuthenticatedRequest(req)) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
 
-    if (!addressId) {
-      return NextResponse.json(
-        { error: 'Address ID is required' },
-        { status: 400 }
+    const { addressId } = await params;
+
+    const result = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+
+      const deleted = await client.query(
+        `DELETE FROM addresses
+         WHERE id = $1 AND profile_id = $2
+         RETURNING id, is_default`,
+        [addressId, profile.id]
       );
-    }
 
-    // Find and remove the address
-    const addressIndex = mockAddresses.findIndex(addr => addr.id === addressId);
-    
-    if (addressIndex === -1) {
-      return NextResponse.json(
-        { error: 'Address not found' },
-        { status: 404 }
-      );
-    }
+      if (!deleted.rows[0]) return null;
 
-    const deletedAddress = mockAddresses[addressIndex];
-    mockAddresses.splice(addressIndex, 1);
+      if (deleted.rows[0].is_default) {
+        await client.query(
+          `UPDATE addresses
+           SET is_default = TRUE
+           WHERE id = (
+             SELECT id FROM addresses WHERE profile_id = $1 ORDER BY updated_at DESC LIMIT 1
+           )`,
+          [profile.id]
+        );
+      }
 
-    // If the deleted address was default and there are other addresses, make the first one default
-    if (deletedAddress.isDefault && mockAddresses.length > 0) {
-      mockAddresses[0].isDefault = true;
-    }
-
-    return NextResponse.json({
-      success: true,
-      addressId,
-      message: 'Address deleted successfully'
+      return { success: true };
     });
+
+    if (!result) {
+      return NextResponse.json({ error: 'Address not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error deleting address:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete address' },
-      { status: 500 }
-    );
+    console.error('Address DELETE failed:', error);
+    return NextResponse.json({ error: 'Failed to delete address' }, { status: 500 });
   }
 }

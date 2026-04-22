@@ -6,34 +6,6 @@ import Link from 'next/link';
 import { CalendarDays, User, Tag, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-// Fallback blog post in case API fails
-const fallbackBlogPost = {
-  id: 'health-benefits',
-  title: "Health Benefits of Seafood",
-  image: "https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=2070&auto=format&fit=crop",
-  slug: "health-benefits-of-seafood",
-  excerpt: "Discover the amazing health benefits of including seafood in your regular diet.",
-  category: "Health",
-  author: "Dr. Ramanathan",
-  date: "2023-06-15",
-  content: `
-    <p>Seafood is packed with essential nutrients that can improve your overall health. Rich in omega-3 fatty acids, high-quality protein, and various vitamins and minerals, seafood is one of the most nutritious foods you can include in your diet.</p>
-    
-    <h2>Omega-3 Fatty Acids</h2>
-    <p>Fish and shellfish are excellent sources of omega-3 fatty acids, particularly EPA and DHA. These essential fatty acids are crucial for brain health, reducing inflammation, and supporting cardiovascular function.</p>
-    
-    <h2>Heart Health</h2>
-    <p>Regular consumption of fish has been linked to a reduced risk of heart disease. The omega-3 fatty acids in fish can help lower blood pressure, reduce triglycerides, and prevent the build-up of plaque in arteries.</p>
-    
-    <h2>Brain Development</h2>
-    <p>DHA, one of the omega-3 fatty acids found in seafood, is a major structural component of the brain. Consuming seafood during pregnancy and early childhood can support optimal brain development.</p>
-    
-    <h2>Rich in Nutrients</h2>
-    <p>Seafood is an excellent source of high-quality protein, vitamins D and B2, and minerals like calcium, phosphorus, iron, zinc, iodine, magnesium, and potassium.</p>
-  `,
-  isActive: true
-};
-
 export default function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const [blogPost, setBlogPost] = useState<any | null>(null);
@@ -101,29 +73,15 @@ export default function BlogPostPage({ params }: { params: Promise<{ slug: strin
             setBlogPost(post);
           } else {
             console.warn("Blog post not found with slug:", slug);
-            
-            // Use fallback if the post isn't found
-            if (fallbackBlogPost.slug === slug || fallbackBlogPost.id === slug) {
-              setBlogPost(fallbackBlogPost);
-            } else {
-              setError(`Blog post with slug "${slug}" not found`);
-            }
+            setError(`Blog post with slug "${slug}" not found`);
           }
         } else {
           console.warn("Empty or invalid blog posts data, using fallback");
-          if (fallbackBlogPost.slug === slug || fallbackBlogPost.id === slug) {
-            setBlogPost(fallbackBlogPost);
-          } else {
-            setError(`Blog post with slug "${slug}" not found`);
-          }
+          setError(`Blog post with slug "${slug}" not found`);
         }
       } catch (err) {
         console.error("Error loading blog post:", err);
-        setError('Could not load blog post from API, using fallback data');
-        
-        if (fallbackBlogPost.slug === slug || fallbackBlogPost.id === slug) {
-          setBlogPost(fallbackBlogPost);
-        }
+        setError('Could not load blog post');
       } finally {
         setLoading(false);
       }

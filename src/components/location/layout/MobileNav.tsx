@@ -111,13 +111,12 @@ export default function MobileNav() {
     { name: 'Home', href: '/', icon: Home },
     { 
       name: 'Categories', 
-      // Use a special mobile categories route to avoid URL issues
-      href: '/categoriesmobile', 
+      // Use the unified categories route for both mobile and desktop
+      href: '/categories', 
       icon: MenuSquare,
-      // Add explicit onClick handler to force correct navigation
       action: () => {
-        console.log('Navigating to /categoriesmobile');
-        router.push('/categoriesmobile');
+        console.log('Navigating to /categories');
+        router.push('/categories');
       },
       isAction: true,
       id: 'mobile-categories'

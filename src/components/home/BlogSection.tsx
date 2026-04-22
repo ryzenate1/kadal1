@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,46 +8,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
 
-const blogPosts = [
-	{
-		id: 1,
-		title: "Why Vanjaram fish is considered one of the healthiest seafood choices?",
-		image: "https://images.unsplash.com/photo-1601050690597-df0568f70950?q=80&w=2070&auto=format&fit=crop&w=800",
-		slug: "vanjaram-fish-health-benefits",
-		readTime: "4 min read",
-		category: "Health Benefits",
-		description: "Discover why Vanjaram fish is packed with essential nutrients and how it can benefit your health.",
-	},
-	{
-		id: 2,
-		title: "Sustainable Fishing: How Kadal Thunai Sources the Freshest Catch",
-		image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop&w=800",
-		slug: "sustainable-fishing",
-		readTime: "5 min read",
-		category: "Sustainability",
-		description: "Learn about our commitment to sustainable fishing practices and how we ensure the freshest catch.",
-	},
-	{
-		id: 3,
-		title: "The Health Benefits of Omega-3 Rich Seafood",
-		image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=80&w=2070&auto=format&fit=crop&w=800",
-		slug: "omega3-benefits",
-		readTime: "6 min read",
-		category: "Nutrition",
-		description: "Explore the numerous health benefits of including omega-3 rich seafood in your diet.",
-	},
-	{
-		id: 4,
-		title: "5 Delicious Fish Curry Recipes You Must Try",
-		image: "https://images.unsplash.com/photo-1568600891621-50f697b9a1c7?q=80&w=2070&auto=format&fit=crop&w=800",
-		slug: "fish-curry-recipes",
-		readTime: "8 min read",
-		category: "Recipes",
-		description: "Try these mouthwatering fish curry recipes that are easy to make and packed with flavor.",
-	},
-];
+type BlogPost = {
+	id: string;
+	title: string;
+	slug: string;
+	excerpt: string;
+	category: string;
+	author: string;
+	date: string;
+	image?: string;
+	isActive?: boolean;
+};
 
 const BlogSection = () => {
+	const [posts, setPosts] = useState<BlogPost[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [isMobile, setIsMobile] = useState(false);
 	const blogContainerRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -60,6 +35,27 @@ const BlogSection = () => {
 		window.addEventListener("resize", checkIfMobile);
 		return () => window.removeEventListener("resize", checkIfMobile);
 	}, []);
+
+	useEffect(() => {
+		const load = async () => {
+			setLoading(true);
+			try {
+				const res = await fetch("/api/blog-posts", { cache: "no-store" });
+				if (!res.ok) throw new Error("Failed to load blog posts");
+				const data = (await res.json()) as BlogPost[];
+				setPosts(Array.isArray(data) ? data : []);
+			} catch {
+				setPosts([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+		load();
+	}, []);
+
+	const visiblePosts = useMemo(() => posts.slice(0, isMobile ? 6 : 3), [posts, isMobile]);
+
+	if (!loading && visiblePosts.length === 0) return null;
 
 	// Check scroll position to determine if scroll buttons should be enabled
 	const checkScrollPosition = () => {
@@ -151,7 +147,7 @@ const BlogSection = () => {
 							className="flex overflow-x-auto pb-6 blog-container hide-scrollbar"
 							style={{ scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}
 						>
-							{blogPosts.map((post) => (
+							{visiblePosts.map((post) => (
 								<Card
 									key={post.id}
 									className="min-w-[280px] max-w-[280px] flex-shrink-0 overflow-hidden border-0 shadow-md blog-card mx-2 first:ml-0 last:mr-0"
@@ -159,7 +155,11 @@ const BlogSection = () => {
 								>
 									<div className="relative h-48 overflow-hidden">
 										<Image
-											src={post.image}
+											src={
+												post.image && post.image.startsWith("http")
+													? post.image
+													: "https://images.unsplash.com/photo-1556269923-e4ef51d69638?q=80&w=2036&auto=format&fit=crop"
+											}
 											alt={post.title}
 											fill
 											className="object-cover transition-transform hover:scale-105 duration-300"
@@ -169,9 +169,6 @@ const BlogSection = () => {
 											<span className="inline-block bg-red-500 text-white text-xs px-2 py-1 rounded-full mb-2">
 												{post.category}
 											</span>
-											<span className="inline-block text-white text-xs ml-2">
-												{post.readTime}
-											</span>
 										</div>
 									</div>
 									<CardContent className="flex flex-col h-[160px]">
@@ -179,7 +176,7 @@ const BlogSection = () => {
 											{post.title}
 										</h3>
 										<p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">
-											{post.description}
+											{post.excerpt}
 										</p>
 										<Link
 											href={`/blog/${post.slug}`}
@@ -195,14 +192,18 @@ const BlogSection = () => {
 					</div>
 				) : (
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-						{blogPosts.slice(0, 3).map((post) => (
+						{visiblePosts.slice(0, 3).map((post) => (
 							<Card
 								key={post.id}
 								className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-all duration-300"
 							>
 								<div className="relative h-48 overflow-hidden">
 									<Image
-										src={post.image}
+										src={
+											post.image && post.image.startsWith("http")
+												? post.image
+												: "https://images.unsplash.com/photo-1556269923-e4ef51d69638?q=80&w=2036&auto=format&fit=crop"
+										}
 										alt={post.title}
 										fill
 										className="object-cover transition-transform hover:scale-105 duration-300"
@@ -212,9 +213,6 @@ const BlogSection = () => {
 										<span className="inline-block bg-red-500 text-white text-xs px-2 py-1 rounded-full mb-2">
 											{post.category}
 										</span>
-										<span className="inline-block text-white text-xs ml-2">
-											{post.readTime}
-										</span>
 									</div>
 								</div>
 								<CardContent className="flex flex-col h-[180px]">
@@ -222,7 +220,7 @@ const BlogSection = () => {
 										{post.title}
 									</h3>
 									<p className="text-gray-600 text-sm mb-4 line-clamp-3 flex-grow">
-										{post.description}
+										{post.excerpt}
 									</p>
 									<Link
 										href={`/blog/${post.slug}`}

@@ -29,7 +29,7 @@ const AvatarImage = ({ src, alt, className = "" }: AvatarImageProps) => {
   const getInitialsColor = (name: string) => {
     const colors = [
       'bg-red-100 text-red-600',
-      'bg-blue-100 text-blue-600',
+      'bg-primary/10 text-primary',
       'bg-green-100 text-green-600',
       'bg-yellow-100 text-yellow-600',
       'bg-purple-100 text-purple-600',

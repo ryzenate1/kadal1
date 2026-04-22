@@ -1,20 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { promises as fs } from "fs";
+import path from "path";
 
-export const dynamic = 'force-dynamic';
+type BlogPost = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  author: string;
+  date: string;
+  image?: string;
+  isActive?: boolean;
+};
 
-export async function GET(req: NextRequest) {
+const BLOG_PATH = path.join(process.cwd(), "data", "blog-posts.json");
+
+async function readPosts(): Promise<BlogPost[]> {
   try {
-    const response = await fetch('http://localhost:5001/api/blog-posts');
-    
-    if (!response.ok) {
-      console.error(`Server API returned status: ${response.status}`);
-      return NextResponse.json({ error: 'Failed to fetch blog posts' }, { status: response.status });
-    }
-    
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error('Error fetching blog posts:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const raw = await fs.readFile(BLOG_PATH, "utf8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? (data as BlogPost[]) : [];
+  } catch {
+    return [];
   }
-} 
+}
+
+export async function GET() {
+  const posts = await readPosts();
+  const active = posts.filter((p) => p?.isActive !== false);
+  return NextResponse.json(active);
+}
+

@@ -55,7 +55,7 @@ export default function LoginRedirect() {
             <p className="mb-6 text-red-600">Automatic redirect failed.</p>
             <Link 
               href="/auth/login" 
-              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-block px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
             >
               Click here to go to login page
             </Link>

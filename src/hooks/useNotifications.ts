@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { 
   Notification, 
   fetchUserNotifications, 
@@ -6,8 +7,11 @@ import {
   markNotificationAsRead, 
   markAllNotificationsAsRead 
 } from '@/lib/notificationUtils';
+import { useAuth } from '@/context/AuthContext';
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 export function useNotifications(pollingInterval = 30000) {
+  const { user, isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -84,16 +88,66 @@ export function useNotifications(pollingInterval = 30000) {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Set up polling for real-time updates
+  // Prefer realtime updates; keep polling as a fallback.
   useEffect(() => {
-    if (!pollingInterval) return;
+    if (!isAuthenticated || !user?.id) {
+      return;
+    }
 
-    const intervalId = setInterval(() => {
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      if (!pollingInterval) {
+        return;
+      }
+      const intervalId = setInterval(() => {
+        fetchNotifications();
+      }, pollingInterval);
+      return () => clearInterval(intervalId);
+    }
+
+    const channels: RealtimeChannel[] = [];
+    const handleRealtimeChange = () => {
       fetchNotifications();
-    }, pollingInterval);
-    
-    return () => clearInterval(intervalId);
-  }, [pollingInterval, fetchNotifications]);
+      refreshUnreadCount();
+    };
+
+    const profileChannel = supabase
+      .channel(`notifications-profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        handleRealtimeChange
+      )
+      .subscribe();
+    channels.push(profileChannel);
+
+    const orderChannel = supabase
+      .channel(`notifications-orders-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `profile_id=eq.${user.id}`,
+        },
+        handleRealtimeChange
+      )
+      .subscribe();
+    channels.push(orderChannel);
+
+    return () => {
+      channels.forEach((channel) => {
+        channel.unsubscribe();
+      });
+    };
+  }, [pollingInterval, fetchNotifications, refreshUnreadCount, isAuthenticated, user?.id]);
 
   return {
     notifications,

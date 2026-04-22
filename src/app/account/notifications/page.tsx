@@ -30,9 +30,17 @@ interface NotificationSettings {
   pushNotifications: boolean;
 }
 
+interface NotificationFeedItem {
+  id: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const [settings, setSettings] = useState<NotificationSettings>({
     orderUpdates: true,
     promotions: true,
@@ -44,6 +52,8 @@ export default function NotificationsPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [feed, setFeed] = useState<NotificationFeedItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -56,7 +66,14 @@ export default function NotificationsPage() {
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/user/notifications');
+      const response = await fetch('/api/user/notifications', {
+        headers: {
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
@@ -74,8 +91,79 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchSettings();
+      void fetchFeed();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    const id = setInterval(() => {
+      void fetchFeed();
+    }, 20000);
+    return () => clearInterval(id);
+  }, [isAuthenticated, user?.id]);
+
+  const fetchFeed = async () => {
+    try {
+      const response = await fetch('/api/user/notifications/feed', {
+        headers: {
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setFeed(Array.isArray(data.notifications) ? data.notifications : []);
+      setUnreadCount(Number(data.unreadCount || 0));
+    } catch {
+      // ignore feed fetch errors silently
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      const response = await fetch('/api/user/notifications/feed', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+        body: JSON.stringify({ notificationId: id }),
+      });
+      if (!response.ok) return;
+      setFeed(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch {
+      // ignore mark-read error
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      const response = await fetch('/api/user/notifications/feed', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+        body: JSON.stringify({ action: 'markAllRead' }),
+      });
+      if (!response.ok) return;
+      setFeed(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      toast.success('All notifications marked as read');
+    } catch {
+      toast.error('Failed to update notifications');
+    }
+  };
 
   // Handle setting change
   const handleSettingChange = async (key: keyof NotificationSettings, value: boolean) => {
@@ -90,6 +178,10 @@ export default function NotificationsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
         },
         body: JSON.stringify({ [key]: value })
       });
@@ -104,6 +196,38 @@ export default function NotificationsPage() {
       setSettings(oldSettings);
       console.error('Error updating notification settings:', error);
       toast.error("Failed to update settings");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleBulkUpdate = async (next: NotificationSettings, successMessage: string) => {
+    const oldSettings = { ...settings };
+    setSettings(next);
+
+    try {
+      setIsUpdating(true);
+      const response = await fetch('/api/user/notifications', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+        body: JSON.stringify(next),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update settings');
+      }
+
+      toast.success(successMessage);
+    } catch (error) {
+      setSettings(oldSettings);
+      console.error('Bulk update notification settings failed:', error);
+      toast.error('Failed to update notification settings');
     } finally {
       setIsUpdating(false);
     }
@@ -127,7 +251,7 @@ export default function NotificationsPage() {
       icon: ShoppingBag,
       title: 'Order Updates',
       description: 'Get notified about order confirmations, shipping updates, and deliveries',
-      color: 'bg-blue-100 text-blue-600'
+      color: 'bg-primary/10 text-primary'
     },
     {
       key: 'promotions' as keyof NotificationSettings,
@@ -177,8 +301,8 @@ export default function NotificationsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="account-shell">
+      <div className="app-container-narrow">
         {/* Header */}
         <div className="flex items-center space-x-4 mb-6">
           <Button
@@ -190,13 +314,13 @@ export default function NotificationsPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notification Settings</h1>
-            <p className="text-gray-600">Manage your notification preferences</p>
+            <h1 className="account-title">Notification Settings</h1>
+            <p className="account-subtitle">Manage your notification preferences</p>
           </div>
         </div>
 
         {/* Notification Types */}
-        <Card className="mb-6">
+        <Card className="account-panel mb-6">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Bell className="h-5 w-5 text-red-600" />
@@ -220,7 +344,7 @@ export default function NotificationsPage() {
                         disabled={isUpdating}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
                   </div>
                   <p className="text-sm text-gray-600">{type.description}</p>
@@ -231,10 +355,10 @@ export default function NotificationsPage() {
         </Card>
 
         {/* Delivery Methods */}
-        <Card className="mb-6">
+        <Card className="account-panel mb-6">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Settings className="h-5 w-5 text-blue-600" />
+              <Settings className="h-5 w-5 text-primary" />
               <span>How would you like to receive notifications?</span>
             </CardTitle>
           </CardHeader>
@@ -255,7 +379,7 @@ export default function NotificationsPage() {
                         disabled={isUpdating}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
                   </div>
                   <p className="text-sm text-gray-600">{method.description}</p>
@@ -266,7 +390,7 @@ export default function NotificationsPage() {
         </Card>
 
         {/* Quick Actions */}
-        <Card>
+        <Card className="account-panel">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
@@ -275,7 +399,7 @@ export default function NotificationsPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const allEnabled = {
+                  const allEnabled: NotificationSettings = {
                     orderUpdates: true,
                     promotions: true,
                     loyaltyUpdates: true,
@@ -284,8 +408,7 @@ export default function NotificationsPage() {
                     emailNotifications: true,
                     pushNotifications: true
                   };
-                  setSettings(allEnabled);
-                  toast.success("All notifications enabled!");
+                  void handleBulkUpdate(allEnabled, "All notifications enabled!");
                 }}
                 className="flex items-center space-x-2"
               >
@@ -296,7 +419,7 @@ export default function NotificationsPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const allDisabled = {
+                  const allDisabled: NotificationSettings = {
                     orderUpdates: false,
                     promotions: false,
                     loyaltyUpdates: false,
@@ -305,8 +428,7 @@ export default function NotificationsPage() {
                     emailNotifications: false,
                     pushNotifications: false
                   };
-                  setSettings(allDisabled);
-                  toast.success("All notifications disabled!");
+                  void handleBulkUpdate(allDisabled, "All notifications disabled!");
                 }}
                 className="flex items-center space-x-2 text-red-600 hover:text-red-700"
               >
@@ -314,6 +436,40 @@ export default function NotificationsPage() {
                 <span>Disable All</span>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="account-panel mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Recent Updates</span>
+              <span className="text-xs font-semibold text-red-600">{unreadCount} unread</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-end mb-3">
+              <Button variant="outline" size="sm" onClick={() => void markAllRead()}>Mark all read</Button>
+            </div>
+            {feed.length === 0 ? (
+              <p className="text-sm text-gray-500">No updates yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {feed.slice(0, 12).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => void markAsRead(n.id)}
+                    className={`w-full text-left border rounded-lg p-3 transition-colors ${n.isRead ? 'bg-white border-gray-200' : 'bg-red-50 border-red-200'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900">{n.title}</p>
+                      {!n.isRead && <span className="text-[10px] font-bold text-red-600">NEW</span>}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{n.message}</p>
+                    <p className="text-[11px] text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString('en-IN')}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

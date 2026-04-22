@@ -7,6 +7,7 @@ import { Italianno, Oswald } from 'next/font/google';
 import { motion } from "framer-motion";
 import gsap from 'gsap';
 import localFont from 'next/font/local';
+import { useRouter } from "next/navigation";
 
 // Italianno font for SignatureCuts
 const italianno = Italianno({
@@ -29,6 +30,7 @@ const oswald = Oswald({
 });
 
 const HeroBanner = () => {
+  const router = useRouter();
   // Refs for animation targets
   const containerRef = useRef<HTMLDivElement>(null);
   const welcomeTextRef = useRef<HTMLHeadingElement>(null);
@@ -384,7 +386,7 @@ const HeroBanner = () => {
   return (
     <div className="relative w-full hero-banner-container" ref={containerRef}>
       <motion.div 
-        className="relative w-full h-[600px] overflow-hidden"
+        className="relative w-full h-[100vh] min-h-[600px] overflow-hidden"
         initial={{ opacity: 0.9 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -491,6 +493,7 @@ const HeroBanner = () => {
                 <Button 
                   ref={buttonRef}
                   className="bg-red-600 hover:bg-red-700 text-base px-8 py-6 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl opacity-0"
+                  onClick={() => router.push("/categories")}
                 >
                   SHOP NOW
                 </Button>

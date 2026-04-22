@@ -1,0 +1,75 @@
+[
+  {
+    "id": "health-benefits",
+    "title": "Health Benefits of Seafood",
+    "slug": "health-benefits-of-seafood",
+    "excerpt": "Discover the amazing health benefits of including seafood in your regular diet.",
+    "content": "<p>Seafood is packed with essential nutrients that support heart health, brain function, and overall wellbeing. In this guide, we break down the key benefits and how to include seafood in your weekly routine.</p><h2>Why seafood is a smart choice</h2><ul><li><strong>High-quality protein</strong> with a great amino acid profile</li><li><strong>Omega-3 fats</strong> that support heart health</li><li><strong>Micronutrients</strong> like iodine, selenium, and vitamin D</li></ul><h2>How often should you eat seafood?</h2><p>A balanced routine is 2–3 servings per week. Choose a mix of lean fish and omega-3 rich options.</p><h2>Quick tips</h2><ul><li>Prefer fresh catch and store it cold</li><li>Cook gently to preserve texture</li><li>Pair with fiber-rich sides</li></ul><p><em>Note:</em> Nutrition varies by fish and preparation method.</p>",
+    "category": "Health",
+    "author": "Kadal Thunai",
+    "date": "2026-04-21",
+    "image": "https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  },
+  {
+    "id": "how-to-choose-fresh-fish",
+    "title": "How to Choose Fresh Fish: A Simple Checklist",
+    "slug": "how-to-choose-fresh-fish-a-simple-checklist",
+    "excerpt": "Not sure if fish is fresh? Use this quick checklist to pick the best catch every time.",
+    "content": "<p>Fresh fish should look clean, smell mild, and feel firm. Here’s a simple checklist you can use at home.</p><h2>Freshness checklist</h2><ul><li><strong>Smell</strong>: Mild ocean-like smell (never strong or sour)</li><li><strong>Eyes</strong>: Clear and slightly bulging</li><li><strong>Gills</strong>: Bright red/pink, not brown or slimy</li><li><strong>Skin</strong>: Shiny with tight scales</li><li><strong>Flesh</strong>: Firm and springs back when pressed</li></ul><h2>Storage tips</h2><p>Keep fish chilled at 0–4°C. If you’re not cooking within 24 hours, store it on ice (drained) in a covered container.</p><p>At Kadal Thunai, we follow cold-chain practices so your fish reaches you in peak condition.</p>",
+    "category": "Guides",
+    "author": "Kadal Thunai",
+    "date": "2026-04-18",
+    "image": "https://images.unsplash.com/photo-1544551763-cede74b49a7f?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  },
+  {
+    "id": "omega3-explained",
+    "title": "Omega‑3 Explained: What It Is and Why It Matters",
+    "slug": "omega-3-explained-what-it-is-and-why-it-matters",
+    "excerpt": "Omega‑3 is one of the most talked-about nutrients in seafood. Here’s what it actually does for you.",
+    "content": "<p>Omega‑3 fatty acids (EPA and DHA) are essential fats commonly found in fish. Your body can’t make enough on its own, so diet matters.</p><h2>Benefits</h2><ul><li><strong>Heart health</strong>: supports healthy triglyceride levels</li><li><strong>Brain function</strong>: DHA is a key component of brain tissue</li><li><strong>Recovery</strong>: can support post-workout inflammation balance</li></ul><h2>Best seafood sources</h2><p>Fatty fish generally contain more omega‑3. A weekly routine that includes a variety of fish is ideal.</p><h2>How to cook</h2><p>Gentle cooking methods like steaming, pan-searing, and baking help preserve quality.</p>",
+    "category": "Nutrition",
+    "author": "Kadal Thunai",
+    "date": "2026-04-12",
+    "image": "https://images.unsplash.com/photo-1510137600163-2729bc6959a6?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  },
+  {
+    "id": "cooking-vanjaram",
+    "title": "Vanjaram (Seer Fish) Recipes: 3 Easy Home Styles",
+    "slug": "vanjaram-seer-fish-recipes-3-easy-home-styles",
+    "excerpt": "From pepper fry to pan-sear, here are 3 reliable ways to cook vanjaram at home.",
+    "content": "<p>Vanjaram is prized for its firm texture and rich taste. Here are three easy, repeatable home-style methods.</p><h2>1) Pepper fry</h2><p>Coat slices with pepper, chilli powder, salt, and a little lemon. Pan-fry until golden.</p><h2>2) Tamil-style curry</h2><p>Use a tamarind base with shallots and curry leaves. Add fish at the end and simmer gently.</p><h2>3) Simple pan-sear</h2><p>Salt + turmeric + a light oil. Sear on high heat and finish with lemon.</p><p><em>Tip:</em> Avoid overcooking—seer fish stays juicier with shorter cook times.</p>",
+    "category": "Recipes",
+    "author": "Kadal Thunai Kitchen",
+    "date": "2026-04-06",
+    "image": "https://images.unsplash.com/photo-1553621042-f6e147245754?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  },
+  {
+    "id": "delivery-and-storage",
+    "title": "After Delivery: How to Store Seafood Safely at Home",
+    "slug": "after-delivery-how-to-store-seafood-safely-at-home",
+    "excerpt": "Received your order? Here’s how to store fish and seafood correctly to keep it fresh.",
+    "content": "<p>Seafood is highly perishable, but a few simple steps keep it fresh and safe.</p><h2>Same-day cooking</h2><ul><li>Rinse lightly (optional) and pat dry</li><li>Keep covered in the coldest part of your fridge</li><li>Cook within 24 hours</li></ul><h2>Freezing</h2><ul><li>Portion into meal sizes</li><li>Wrap tightly to prevent freezer burn</li><li>Label the date</li></ul><h2>Thawing</h2><p>Thaw in the fridge overnight. Avoid room-temperature thawing.</p>",
+    "category": "Guides",
+    "author": "Kadal Thunai",
+    "date": "2026-03-29",
+    "image": "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  },
+  {
+    "id": "why-fresh-catch",
+    "title": "Why Fresh Catch Tastes Better (and How We Maintain Quality)",
+    "slug": "why-fresh-catch-tastes-better-and-how-we-maintain-quality",
+    "excerpt": "Freshness isn’t marketing—it’s temperature control, handling, and timing. Here’s how quality is maintained.",
+    "content": "<p>The biggest difference between average and great seafood is how it’s handled after catch. Temperature, timing, and hygiene all matter.</p><h2>Our approach</h2><ul><li><strong>Cold chain</strong>: keep seafood chilled end-to-end</li><li><strong>Clean handling</strong>: hygienic processing and packaging</li><li><strong>Fast dispatch</strong>: reduce time-to-kitchen</li></ul><p>When freshness is protected, texture improves, smell stays clean, and taste is naturally sweet.</p>",
+    "category": "Behind the scenes",
+    "author": "Kadal Thunai",
+    "date": "2026-03-22",
+    "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=2070&auto=format&fit=crop",
+    "isActive": true
+  }
+]
+

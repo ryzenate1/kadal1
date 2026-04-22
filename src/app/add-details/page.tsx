@@ -2,24 +2,37 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { ArrowLeft, Save, MapPin, Home, Building, User, Phone, Tag, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { addressManager } from '@/utils/addressSync';
 
 import { Suspense } from 'react';
 
 function AddDetailsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   // Get coordinates and address from URL
   const lat = searchParams.get('lat');
   const lng = searchParams.get('lng');
   const address = searchParams.get('address');
+  const returnTo = searchParams.get('returnTo') || 'choose-location';
+
+  const parsedParts = (address || '').split(',').map((p) => p.trim()).filter(Boolean);
+  const parsedPincode = (address || '').match(/\b\d{6}\b/)?.[0] || '';
+  const parsedCity = parsedParts.length >= 3 ? parsedParts[parsedParts.length - 3] : '';
+  const parsedState = parsedParts.length >= 2 ? parsedParts[parsedParts.length - 2].replace(/\b\d{6}\b/g, '').trim() : '';
 
   const [addressLabel, setAddressLabel] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phoneNumber || '');
   const [addressType, setAddressType] = useState('home');
   const [landmark, setLandmark] = useState('');
+  const [city, setCity] = useState(parsedCity);
+  const [stateName, setStateName] = useState(parsedState);
+  const [pincode, setPincode] = useState(parsedPincode);
   const [isLoading, setIsLoading] = useState(false);
 
   // Handle back navigation
@@ -29,19 +42,52 @@ function AddDetailsPageInner() {
 
   // Handle save with validation
   const handleSave = async () => {
-    if (!addressLabel.trim() || !name.trim() || !phone.trim()) {
-      alert('Please fill in all required fields');
+    if (!addressLabel.trim() || !name.trim() || !city.trim() || !stateName.trim() || !pincode.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(pincode.trim())) {
+      toast.error('Pincode must be 6 digits');
       return;
     }
 
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const rawAddress = address || '';
+      const parts = rawAddress.split(',').map((p) => p.trim()).filter(Boolean);
+      const streetParts = parts.slice(0, Math.max(1, parts.length - 3));
+      const streetAddress = streetParts.join(', ') || rawAddress;
+
+      const mappedType: 'home' | 'work' | 'other' =
+        addressType === 'home' ? 'home' : addressType === 'office' ? 'work' : 'other';
+
+      addressManager.addAddress({
+        name: addressLabel,
+        phoneNumber: phone.trim(),
+        address: `${streetAddress}${landmark ? `, ${landmark}` : ''}`,
+        city,
+        state: stateName,
+        pincode,
+        type: mappedType,
+        isDefault: returnTo === 'checkout',
+      });
+
+      toast.success('Address saved successfully');
       setIsLoading(false);
-      alert('Address saved successfully!');
+
+      if (returnTo === 'checkout') {
+        router.push('/checkout');
+        return;
+      }
+
       router.push('/choose-location');
-    }, 1500);
+    } catch (error) {
+      console.error('Failed to save mapped address:', error);
+      toast.error('Failed to save address');
+      setIsLoading(false);
+    }
   };
 
   const addressTypes = [
@@ -152,7 +198,7 @@ function AddDetailsPageInner() {
             <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-100">
               <label className="text-sm font-semibold text-gray-900 mb-3 block flex items-center gap-2">
                 <Phone className="text-orange-500" size={16} />
-                Phone Number *
+                Phone Number (Optional)
               </label>
               <input
                 type="tel"
@@ -176,6 +222,34 @@ function AddDetailsPageInner() {
                 placeholder="e.g., Near Central Mall, Opposite Bus Stop"
                 className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors bg-gray-50 focus:bg-white"
               />
+            </div>
+
+            {/* City / State / Pincode */}
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-100 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-900">Delivery Area Details</h3>
+              <div className="grid grid-cols-1 gap-3">
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City *"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors bg-gray-50 focus:bg-white"
+                />
+                <input
+                  type="text"
+                  value={stateName}
+                  onChange={(e) => setStateName(e.target.value)}
+                  placeholder="State *"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors bg-gray-50 focus:bg-white"
+                />
+                <input
+                  type="text"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Pincode *"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors bg-gray-50 focus:bg-white"
+                />
+              </div>
             </div>
           </div>
         </div>

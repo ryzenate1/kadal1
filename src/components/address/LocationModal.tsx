@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { MapPin, X, Loader2, Home, Briefcase, MapPinned } from 'lucide-react';
 import { toast } from 'sonner';
 import dynamic from 'next/dynamic';
@@ -106,6 +106,7 @@ export function LocationModal({ open, onOpenChange, onSave, initialLocation }: L
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
+        <DialogTitle className="sr-only">Set your location</DialogTitle>
         <div className="flex items-center justify-between border-b pb-3">
           <h3 className="text-lg font-semibold flex items-center">
             <MapPin className="h-5 w-5 mr-2 text-red-500" />

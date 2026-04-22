@@ -1,0 +1,2 @@
+# This file was used during migration to production Clerk keys.
+# It is no longer needed and can be deleted.

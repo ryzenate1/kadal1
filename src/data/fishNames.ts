@@ -157,6 +157,133 @@ export const fishNames: FishNameEntry[] = [
     tanglish: ["singi eral", "singi", "lobster"],
     category: "premium shellfish",
     description: "Premium shellfish with sweet, tender meat"
+  },
+  {
+    english: "Salmon",
+    tamil: "சால்மன் மீன்",
+    tanglish: ["salmon", "salmon fish"],
+    category: "premium fish",
+    description: "Rich, oily fish with a buttery texture"
+  },
+  {
+    english: "Red Snapper",
+    tamil: "செவ்வல் மீன்",
+    tanglish: ["red snapper", "sevval", "sevval meen"],
+    category: "premium fish",
+    description: "Firm white fish with a sweet, clean flavor"
+  },
+  {
+    english: "Hilsa",
+    tamil: "இலிஷ் மீன்",
+    tanglish: ["hilsa", "ilish", "ilish meen"],
+    category: "premium fish",
+    description: "Seasonal oily fish prized for its rich taste"
+  },
+  {
+    english: "Sea Bass",
+    tamil: "கடல் பாஸ் மீன்",
+    tanglish: ["sea bass", "koduva meen"],
+    alternateNames: ["Koduva fish"],
+    category: "premium fish",
+    description: "Mild, flaky white fish"
+  },
+  {
+    english: "European Sea Bass",
+    tamil: "ஐரோப்பிய கடல் பாஸ்",
+    tanglish: ["branzino", "european sea bass"],
+    category: "premium fish",
+    description: "Mediterranean sea bass with a mild sweet flavor"
+  },
+  {
+    english: "Swordfish",
+    tamil: "வாள் மீன்",
+    tanglish: ["swordfish", "nilai meen"],
+    category: "premium fish",
+    description: "Dense, meaty fish ideal for grilling"
+  },
+  {
+    english: "Mahi Mahi",
+    tamil: "மகி-மகி மீன்",
+    tanglish: ["mahi mahi", "avoli meen"],
+    category: "premium fish",
+    description: "Lean tropical fish with a sweet flavor"
+  },
+  {
+    english: "Halibut",
+    tamil: "ஹாலிபட் மீன்",
+    tanglish: ["halibut", "vella meen"],
+    category: "premium fish",
+    description: "Large flatfish with firm white flesh"
+  },
+  {
+    english: "Cod",
+    tamil: "காட் மீன்",
+    tanglish: ["cod", "cod fish", "koduva meen"],
+    category: "white fish",
+    description: "Mild, flaky white fish"
+  },
+  {
+    english: "Haddock",
+    tamil: "ஹாடாக் மீன்",
+    tanglish: ["haddock", "sankara meen"],
+    category: "white fish",
+    description: "Lean white fish with a clean, slightly sweet flavor"
+  },
+  {
+    english: "Flounder",
+    tamil: "பிளவுண்டர் மீன்",
+    tanglish: ["flounder", "nakku meen"],
+    category: "flat fish",
+    description: "Flatfish with a delicate texture"
+  },
+  {
+    english: "Butter Sole",
+    tamil: "பட்டர் சோல் மீன்",
+    tanglish: ["butter sole", "naaval meen"],
+    category: "flat fish",
+    description: "Delicate sole with a buttery texture"
+  },
+  {
+    english: "Trout",
+    tamil: "ட்ரவுட் மீன்",
+    tanglish: ["trout", "kalanji meen"],
+    category: "freshwater fish",
+    description: "Freshwater fish with a mild, delicate flavor"
+  },
+  {
+    english: "Katla",
+    tamil: "கட்லா மீன்",
+    tanglish: ["katla", "katla fish"],
+    category: "freshwater fish",
+    description: "Popular Indian major carp"
+  },
+  {
+    english: "Trevally",
+    tamil: "பாறை மீன்",
+    tanglish: ["trevally", "paarai"],
+    category: "marine fish",
+    description: "Firm-textured coastal fish"
+  },
+  {
+    english: "Big Trevally",
+    tamil: "பெரிய பாறை மீன்",
+    tanglish: ["big trevally", "periya paarai"],
+    category: "marine fish",
+    description: "Large trevally with firm white flesh"
+  },
+  {
+    english: "Yellow Trevally",
+    tamil: "மஞ்சள் பாறை மீன்",
+    tanglish: ["yellow trevally", "manjal paarai"],
+    category: "marine fish",
+    description: "Yellow variety of trevally"
+  },
+  {
+    english: "Oil Fish",
+    tamil: "எண்ணெய் மீன்",
+    tanglish: ["oil fish", "enna meen"],
+    category: "oily fish",
+    description: "High-oil fish with a rich flavor"
   }
 ];
 
@@ -216,6 +343,63 @@ export function findFishByTerm(searchTerm: string): FishNameEntry[] {
     
     return false;
   });
+}
+
+export function getTamilNameForFish(fishName: string, tanglishName?: string): string | null {
+  const normalized = [fishName, tanglishName]
+    .filter((value): value is string => Boolean(value))
+    .map(value => value.toLowerCase().trim());
+
+  const matchedEntry = fishNames.find(entry => {
+    const english = entry.english.toLowerCase();
+    const aliases = entry.alternateNames?.map(name => name.toLowerCase()) ?? [];
+
+    return normalized.some(candidate =>
+      candidate === english ||
+      candidate.includes(english) ||
+      english.includes(candidate) ||
+      aliases.some(alias => candidate === alias || candidate.includes(alias) || alias.includes(candidate))
+    );
+  });
+
+  if (matchedEntry?.tamil) {
+    return matchedEntry.tamil;
+  }
+
+  const fallbackMap: Record<string, string> = {
+    'sliced vanjaram': 'வஞ்சிரம் மீன்',
+    'vanjaram fish': 'வஞ்சிரம் மீன்',
+    'seer fish': 'வஞ்சிரம் மீன்',
+    'seer fish slices': 'வஞ்சிரம் மீன்',
+    'dried seer fish': 'வஞ்சிரம் மீன்',
+    'tuna fish': 'சூரை மீன்',
+    'salmon fish': 'சால்மன் மீன்',
+    'sea bass': 'கடல் பாஸ் மீன்',
+    'branzino': 'ஐரோப்பிய கடல் பாஸ்',
+    'swordfish': 'வாள் மீன்',
+    'mahi mahi': 'மகி-மகி மீன்',
+    'halibut': 'ஹாலிபட் மீன்',
+    'cod fish': 'காட் மீன்',
+    'haddock': 'ஹாடாக் மீன்',
+    'flounder': 'பிளவுண்டர் மீன்',
+    'butter sole': 'பட்டர் சோல் மீன்',
+    'trout': 'ட்ரவுட் மீன்',
+    'katla fish': 'கட்லா மீன்',
+    'big trevally': 'பெரிய பாறை மீன்',
+    'trevally': 'பாறை மீன்',
+    'yellow trevally': 'மஞ்சள் பாறை மீன்',
+    'oil fish': 'எண்ணெய் மீன்',
+    'red snapper': 'செவ்வல் மீன்',
+    'hilsa fish': 'இலிஷ் மீன்'
+  };
+
+  for (const candidate of normalized) {
+    if (fallbackMap[candidate]) {
+      return fallbackMap[candidate];
+    }
+  }
+
+  return tanglishName ?? null;
 }
 
 // Function to get closest matching fish name for a search term

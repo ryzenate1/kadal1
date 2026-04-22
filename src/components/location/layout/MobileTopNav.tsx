@@ -30,6 +30,14 @@ interface MenuItem {
   isActive?: (pathname: string) => boolean;
 }
 
+const FALLBACK_CATEGORIES: Category[] = [
+  { id: '1', name: 'Fish Combos', slug: 'fish-combo', isActive: true },
+  { id: '2', name: 'Premium Fish', slug: 'premium-fish', isActive: true },
+  { id: '3', name: 'Fresh Fish', slug: 'fresh-fish', isActive: true },
+  { id: '4', name: 'Sea Prawns', slug: 'sea-prawns', isActive: true },
+  { id: '5', name: 'Crabs', slug: 'crabs', isActive: true },
+];
+
 export default function MobileTopNav() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { getCartItemCount } = useCart();
@@ -38,7 +46,6 @@ export default function MobileTopNav() {
   const [cartCount, setCartCount] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   
@@ -170,41 +177,36 @@ export default function MobileTopNav() {
         
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) {
-            // Filter active categories only
-            const activeCategories = data
-              .filter((cat: any) => cat.isActive !== false)
-              .slice(0, 10) // Limit to top 10 categories
-              .map((cat: any) => ({
-                id: cat.id,
-                name: cat.name,
-                slug: cat.slug,
-                isActive: true
-              }));
-            
-            setCategories(activeCategories);
+          const categoryList = Array.isArray(data)
+            ? data
+            : Array.isArray((data as { categories?: unknown[] })?.categories)
+              ? (data as { categories: unknown[] }).categories
+              : [];
+
+          if (!categoryList.length) {
+            setCategories(FALLBACK_CATEGORIES);
+            return;
           }
+
+          // Filter active categories only
+          const activeCategories = categoryList
+            .filter((cat: any) => cat?.isActive !== false)
+            .slice(0, 10)
+            .map((cat: any) => ({
+              id: String(cat.id || cat.slug || cat.name),
+              name: String(cat.name || 'Category'),
+              slug: String(cat.slug || '').trim(),
+              isActive: true
+            }))
+            .filter((cat: Category) => cat.slug);
+          
+          setCategories(activeCategories.length ? activeCategories : FALLBACK_CATEGORIES);
         } else {
-          console.error('Failed to fetch categories');
-          // Fallback categories if API fails
-          setCategories([
-            { id: '1', name: 'Fish Combos', slug: 'fish-combo', isActive: true },
-            { id: '2', name: 'Premium Fish', slug: 'premium-fish', isActive: true },
-            { id: '3', name: 'Fresh Fish', slug: 'fresh-fish', isActive: true },
-            { id: '4', name: 'Sea Prawns', slug: 'sea-prawns', isActive: true },
-            { id: '5', name: 'Crabs', slug: 'crabs', isActive: true },
-          ]);
+          setCategories(FALLBACK_CATEGORIES);
         }
       } catch (error) {
-        console.error('Error fetching categories:', error);
-        // Fallback categories if API fails
-        setCategories([
-          { id: '1', name: 'Fish Combos', slug: 'fish-combo', isActive: true },
-          { id: '2', name: 'Premium Fish', slug: 'premium-fish', isActive: true },
-          { id: '3', name: 'Fresh Fish', slug: 'fresh-fish', isActive: true },
-          { id: '4', name: 'Sea Prawns', slug: 'sea-prawns', isActive: true },
-          { id: '5', name: 'Crabs', slug: 'crabs', isActive: true },
-        ]);
+        console.warn('Using fallback categories due to fetch error:', error);
+        setCategories(FALLBACK_CATEGORIES);
       } finally {
         setIsLoadingCategories(false);
       }
@@ -215,7 +217,7 @@ export default function MobileTopNav() {
   
   // Handle search overlay
   const handleSearchClick = () => {
-    setShowSearchOverlay(true);
+    router.push('/search');
   };
   return (
     <header className="sticky top-0 z-50 bg-white shadow-lg border-b border-red-100">
@@ -590,76 +592,6 @@ export default function MobileTopNav() {
               </div>
             </motion.div>
           </>
-        )}
-      </AnimatePresence>
-      {/* Search Overlay */}
-      <AnimatePresence>
-        {showSearchOverlay && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-white z-50 flex flex-col"
-          >
-            <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-              <button 
-                onClick={() => setShowSearchOverlay(false)}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                aria-label="Close search"
-              >
-                <X className="h-6 w-6 text-gray-600" />
-              </button>
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Search for fish, seafood..."
-                  className="w-full h-12 pl-10 pr-4 border-2 border-red-200 rounded-full focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100 shadow-sm"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500" />
-              </div>
-            </div>
-            <div className="flex-1 p-4 overflow-y-auto">
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Popular Searches</h3>
-                <div className="flex flex-wrap gap-2">
-                  <button className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-sm hover:bg-gray-200 transition-colors">Vanjiram</button>
-                  <button className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-sm hover:bg-gray-200 transition-colors">Prawns</button>
-                  <button className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-sm hover:bg-gray-200 transition-colors">Crab</button>
-                  <button className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-sm hover:bg-gray-200 transition-colors">Fish Combo</button>
-                </div>
-              </div>
-              
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Recent Searches</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center">
-                      <div className="p-2 rounded-full bg-gray-100">
-                        <Search className="h-4 w-4 text-gray-500" />
-                      </div>
-                      <span className="ml-3 text-gray-700">King Fish</span>
-                    </div>
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center">
-                      <div className="p-2 rounded-full bg-gray-100">
-                        <Search className="h-4 w-4 text-gray-500" />
-                      </div>
-                      <span className="ml-3 text-gray-700">Premium Prawn</span>
-                    </div>
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         )}
       </AnimatePresence>
     </header>

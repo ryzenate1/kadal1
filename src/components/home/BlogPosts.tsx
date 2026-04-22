@@ -7,46 +7,6 @@ import { CalendarDays, User, ArrowRight, AlertTriangle, Loader2, ChevronLeft, Ch
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
-// Fallback blog posts in case API fails
-const fallbackBlogPosts = [
-  {
-    id: 'health-benefits',
-    title: "Health Benefits of Seafood",
-    image: "https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?q=80&w=2070&auto=format&fit=crop",
-    slug: "health-benefits-of-seafood",
-    excerpt: "Discover the amazing health benefits of including seafood in your regular diet.",
-    category: "Health",
-    author: "Dr. Ramanathan",
-    date: "2023-06-15",
-    content: "Seafood is packed with essential nutrients that can improve your overall health...",
-    isActive: true
-  },
-  {
-    id: 'cooking-tips',
-    title: "5 Easy Ways to Cook Fish",
-    image: "https://images.unsplash.com/photo-1603073163308-9654c3fb70b5?q=80&w=2070&auto=format&fit=crop",
-    slug: "easy-ways-to-cook-fish",
-    excerpt: "Simple and delicious ways to prepare fish at home.",
-    category: "Cooking",
-    author: "Chef Lakshmi",
-    date: "2023-05-22",
-    content: "Cooking fish at home doesn't have to be intimidating. Here are five easy methods...",
-    isActive: true
-  },
-  {
-    id: 'sustainable-fishing',
-    title: "Sustainable Fishing Practices",
-    image: "https://images.unsplash.com/photo-1545816250-e12bedba42ba?q=80&w=1974&auto=format&fit=crop",
-    slug: "sustainable-fishing-practices",
-    excerpt: "How our fishing practices help protect marine ecosystems.",
-    category: "Sustainability",
-    author: "Arjun Kumar",
-    date: "2023-04-10",
-    content: "Sustainability is at the heart of our fishing practices. We believe in protecting the ocean...",
-    isActive: true
-  }
-];
-
 const BlogPosts = () => {
   const [blogPosts, setBlogPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,17 +73,16 @@ const BlogPosts = () => {
         const data = await res.json();
         console.log("Blog posts received:", data);
         
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const activePosts = data.filter((post: any) => post.isActive !== false);
           setBlogPosts(activePosts);
         } else {
-          console.warn("Empty or invalid blog posts data, using fallback");
-          setBlogPosts(fallbackBlogPosts);
+          setBlogPosts([]);
         }
       } catch (err) {
         console.error("Error loading blog posts:", err);
-        setError('Could not load blog posts from API, using fallback data');
-        setBlogPosts(fallbackBlogPosts);
+        setError('Could not load blog posts');
+        setBlogPosts([]);
       } finally {
         setLoading(false);
       }

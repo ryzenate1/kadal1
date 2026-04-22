@@ -3,87 +3,21 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { Search, X, ArrowRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { getSafeFishImage } from "@/lib/fishImage";
 
-// Enhanced product data with more searchable fields
-const allProducts = [
-  {
-    id: 1,
-    name: "Chicken Curry Cut (Skin Off) - 1 Kg",
-    image: "/images/products/chicken-curry-cut.jpeg",
-    price: 309,
-    category: "chicken",
-    slug: "chicken-curry-cut-skin-off-1kg",
-    regionalNames: ["கோழி குழம்பு வெட்டு", "kozhi curry cut"],
-    tags: ["curry", "boneless", "skinless", "fresh"],
-    searchKeywords: ["curry chicken", "curry cut", "skinless chicken", "fresh chicken"]
-  },
-  {
-    id: 2,
-    name: "Chicken Breast Boneless",
-    image: "/images/products/chicken-breast-boneless.webp",
-    price: 154,
-    category: "chicken",
-    slug: "chicken-breast-boneless",
-    regionalNames: ["கோழி மார்பு", "kozhi maarbu"],
-    tags: ["breast", "boneless", "protein", "lean"],
-    searchKeywords: ["chicken breast", "boneless chicken", "protein", "lean meat"]
-  },
-  {
-    id: 3,
-    name: "Premium - Curry Cut (Skin Off) Without Liver",
-    image: "/images/products/premium-curry-cut.webp",
-    price: 158,
-    category: "chicken",
-    slug: "premium-curry-cut-skin-off-without-liver",
-    regionalNames: ["பிரீமியம் கோழி குழம்பு வெட்டு", "premium kozhi curry cut"],
-    tags: ["premium", "curry", "skinless", "no liver"],
-    searchKeywords: ["premium chicken", "curry cut", "no liver", "skinless"]
-  },
-  {
-    id: 4,
-    name: "Premium - Curry Cut (Skin On) Without Liver",
-    image: "/images/products/premium-curry-cut-skin.webp",
-    price: 149,
-    category: "chicken",
-    slug: "premium-curry-cut-skin-on-without-liver",
-    regionalNames: ["பிரீமியம் கோழி குழம்பு வெட்டு", "premium kozhi curry cut"],
-    tags: ["premium", "curry", "skin on", "no liver"],
-    searchKeywords: ["premium chicken", "curry cut", "skin on", "no liver"]
-  },
-  {
-    id: 5,
-    name: "Sardine - Mathi",
-    image: "/images/products/sardine.webp",
-    price: 129,
-    category: "seafood",
-    slug: "sardine-mathi",
-    regionalNames: ["மத்தி", "mathi meen", "chala"],
-    tags: ["fish", "small fish", "oily fish", "omega-3"],
-    searchKeywords: ["sardine", "mathi", "small fish", "omega 3 fish"]
-  },
-  {
-    id: 6,
-    name: "Prawns Medium - Deshelled",
-    image: "/images/products/prawns.webp",
-    price: 215,
-    category: "seafood",
-    slug: "prawns-medium-deshelled",
-    regionalNames: ["இறால்", "eral", "chemmeen"],
-    tags: ["prawns", "shellfish", "deshelled", "seafood"],
-    searchKeywords: ["prawns", "shrimp", "deshelled prawns", "seafood"]
-  },
-];
+type SearchProduct = {
+  id: string;
+  name: string;
+  image: string;
+  price: number;
+  category: string;
+  slug: string;
+  tags: string[];
+};
 
 // Enhanced category data with more searchable fields
 const categories = [
@@ -132,8 +66,8 @@ interface SearchOverlayProps {
 
 const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
-  const [searchResults, setSearchResults] = useState<typeof allProducts>([]);
+  const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<SearchProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -163,8 +97,42 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadCatalog = async () => {
+      try {
+        const res = await fetch("/api/catalog/products?limit=300", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json() as {
+          products?: Array<{
+            id: string;
+            name: string;
+            image: string;
+            price: number;
+            category: string;
+            slug: string;
+            tags?: string[];
+          }>;
+        };
+        const mapped = (data.products || []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          image: p.image,
+          price: p.price,
+          category: String(p.category || "").toLowerCase(),
+          slug: p.slug,
+          tags: p.tags || [],
+        }));
+        setCatalogProducts(mapped);
+      } catch {
+        setCatalogProducts([]);
+      }
+    };
+    void loadCatalog();
+  }, [isOpen]);
+
   // Calculate search score for relevance ranking
-  const calculateSearchScore = (product: any, query: string): number => {
+  const calculateSearchScore = (product: SearchProduct, query: string): number => {
     if (!query) return 0;
     
     const normalizedQuery = query.toLowerCase().trim();
@@ -179,19 +147,6 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
       score += 50;
     }
     
-    // Check regional names
-    if (product.regionalNames) {
-      for (const name of product.regionalNames) {
-        if (name.toLowerCase() === normalizedQuery) {
-          score += 70; // Exact match on regional name
-          break;
-        } else if (name.toLowerCase().includes(normalizedQuery)) {
-          score += 40; // Partial match on regional name
-          break;
-        }
-      }
-    }
-    
     // Check tags
     if (product.tags) {
       for (const tag of product.tags) {
@@ -204,20 +159,6 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
         }
       }
     }
-    
-    // Check search keywords
-    if (product.searchKeywords) {
-      for (const keyword of product.searchKeywords) {
-        if (keyword.toLowerCase() === normalizedQuery) {
-          score += 60; // Exact match on keyword
-          break;
-        } else if (keyword.toLowerCase().includes(normalizedQuery)) {
-          score += 30; // Partial match on keyword
-          break;
-        }
-      }
-    }
-    
     return score;
   };
 
@@ -230,13 +171,7 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
         setTimeout(() => {
           const normalizedQuery = searchTerm.toLowerCase().trim();
           
-          // Filter products based on search term and active tab
-          const filtered = allProducts.filter((product) => {
-            // Filter by tab first
-            if (activeTab !== "all" && product.category !== activeTab) {
-              return false;
-            }
-            
+          const filtered = catalogProducts.filter((product) => {
             // Calculate search score
             const score = calculateSearchScore(product, normalizedQuery);
             return score > 0;
@@ -258,7 +193,7 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, activeTab]);
+  }, [searchTerm, catalogProducts]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -394,18 +329,6 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
             </div>
           )}
 
-          {/* Filter Tabs (only show when searching) */}
-          {searchTerm && (
-            <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="mb-6">
-              <TabsList className="grid grid-cols-4 mb-4">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="chicken">Chicken</TabsTrigger>
-                <TabsTrigger value="seafood">Seafood</TabsTrigger>
-                <TabsTrigger value="ready-to-cook">Ready to Cook</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-
           {/* Loading State */}
           {isLoading && (
             <div className="flex justify-center items-center py-10">
@@ -446,7 +369,7 @@ const SearchOverlay = ({ isOpen, onClose }: SearchOverlayProps) => {
                   >
                     <div className="relative h-40 bg-gray-100">
                       <Image
-                        src={product.image}
+                        src={getSafeFishImage(product.image, product.name)}
                         alt={product.name}
                         fill
                         className="object-cover"

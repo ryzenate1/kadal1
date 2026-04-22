@@ -1,0 +1,8 @@
+                    <Link 
+                      href="/categories"
+                      onClick={() => setShowMobileMenu(false)}
+                      className="flex items-center p-2 text-gray-700 hover:bg-gray-50 rounded-md text-sm transition-colors"
+                    >
+                      <MenuSquare size={16} className="mr-2" />
+                      <span>All Categories</span>
+                    </Link>

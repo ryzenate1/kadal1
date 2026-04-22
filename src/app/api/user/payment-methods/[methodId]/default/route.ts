@@ -1,45 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-interface RouteParams {
-  params: Promise<{
-    methodId: string;
-  }>;
-}
+export const runtime = 'nodejs';
 
-export async function PATCH(
-  request: NextRequest,
-  context: RouteParams
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ methodId: string }> }
 ) {
   try {
-    const params = await context.params;
-    const { methodId } = params;
+    const { methodId } = await params;
 
-    if (!methodId) {
-      return NextResponse.json(
-        { error: 'Payment method ID is required' },
-        { status: 400 }
+    const updated = await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+
+      const existing = await client.query(
+        `SELECT id FROM payment_methods WHERE id = $1 AND profile_id = $2 LIMIT 1`,
+        [methodId, profile.id]
       );
-    }
 
-    // In a real app, you would:
-    // 1. Verify the user's authentication
-    // 2. Check if the payment method belongs to the authenticated user
-    // 3. Update all other payment methods to set isDefault: false
-    // 4. Update the specified payment method to set isDefault: true
+      if (!existing.rows[0]) {
+        throw new Error('Payment method not found');
+      }
 
-    // For now, simulate a successful default payment method update
-    await new Promise(resolve => setTimeout(resolve, 300));
+      await client.query(`UPDATE payment_methods SET is_default = FALSE WHERE profile_id = $1`, [profile.id]);
+      const result = await client.query(
+        `UPDATE payment_methods
+         SET is_default = TRUE, updated_at = NOW()
+         WHERE id = $1 AND profile_id = $2
+         RETURNING id, is_default`,
+        [methodId, profile.id]
+      );
 
-    return NextResponse.json({
-      success: true,
-      methodId,
-      message: 'Default payment method updated successfully'
+      return result.rows[0];
     });
+
+    return NextResponse.json(updated);
   } catch (error) {
-    console.error('Error setting default payment method:', error);
-    return NextResponse.json(
-      { error: 'Failed to set default payment method' },
-      { status: 500 }
-    );
+    console.error('Payment method default POST failed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update default payment method';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

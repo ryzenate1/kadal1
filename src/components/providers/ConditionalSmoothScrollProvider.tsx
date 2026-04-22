@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import SmoothScrollProvider from './SmoothScrollProvider-new';
+import SmoothScrollProvider from './SmoothScrollProvider';
 import { ReactNode } from 'react';
 
 interface ConditionalSmoothScrollProviderProps {

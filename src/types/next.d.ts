@@ -21,7 +21,7 @@ declare module 'next' {
   }
   
   // For app router async components
-  export interface AsyncPageProps<T = {}> {
+  export interface AsyncPageProps<T = Record<string, unknown>> {
     params: T;
     searchParams?: Record<string, string | string[]>;
   }

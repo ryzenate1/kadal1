@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withTransaction } from '@/lib/server/database';
+import { getRequestUser, resolveProfile } from '@/lib/server/requestUser';
 
-export async function DELETE(request: NextRequest) {
+export const runtime = 'nodejs';
+
+export async function DELETE(req: NextRequest) {
   try {
-    // TODO: Replace with real database operation based on authenticated user
-    // const userId = await getUserIdFromAuth(request);
-    // await db.searchHistory.deleteMany({ where: { userId } });
-    
-    // For now, just return success
-    console.log('Search history cleared for user');
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Search history cleared successfully' 
+    await withTransaction(async (client) => {
+      const profile = await resolveProfile(client, getRequestUser(req));
+      await client.query(`DELETE FROM user_search_history WHERE profile_id = $1`, [profile.id]).catch(() => null);
+      return true;
     });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error clearing search history:', error);
-    return NextResponse.json(
-      { error: 'Failed to clear search history' },
-      { status: 500 }
-    );
+    console.error('Clear search history failed:', error);
+    return NextResponse.json({ error: 'Failed to clear search history' }, { status: 500 });
   }
 }

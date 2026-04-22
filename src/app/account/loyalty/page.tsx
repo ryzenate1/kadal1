@@ -68,7 +68,7 @@ const loyaltyTiers: LoyaltyTier[] = [
 
 export default function LoyaltyPage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const [loyaltyData, setLoyaltyData] = useState({
     currentPoints: 0,
     totalEarned: 0,
@@ -79,6 +79,15 @@ export default function LoyaltyPage() {
   });
   const [activities, setActivities] = useState<LoyaltyActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [claimingPoints, setClaimingPoints] = useState<number | null>(null);
+  const [claimedCoupons, setClaimedCoupons] = useState<Array<{
+    id: string;
+    code: string;
+    discountAmount: number;
+    expiresAt: string;
+    isUsed: boolean;
+  }>>([]);
+  const [nowTs, setNowTs] = useState(Date.now());
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -91,61 +100,37 @@ export default function LoyaltyPage() {
   const fetchLoyaltyData = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/user/loyalty');
+      const response = await fetch('/api/user/loyalty', {
+        headers: {
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setLoyaltyData(data.summary);
         setActivities(data.activities);
+        const couponRes = await fetch('/api/user/claimed-coupons', {
+          headers: {
+            'x-user-id': user?.id || '',
+            'x-user-name': user?.name || '',
+            'x-user-email': user?.email || '',
+            'x-user-phone': user?.phoneNumber || '',
+          },
+        });
+        if (couponRes.ok) {
+          const couponData = await couponRes.json();
+          setClaimedCoupons(Array.isArray(couponData) ? couponData : []);
+        }
       } else {
         throw new Error('Failed to fetch loyalty data');
       }
     } catch (error) {
       console.error('Error fetching loyalty data:', error);
-      // Mock data for development
-      const mockData = {
-        currentPoints: 750,
-        totalEarned: 1250,
-        totalRedeemed: 500,
-        currentTier: 'Silver',
-        nextTier: 'Gold',
-        pointsToNextTier: 750
-      };
-
-      const mockActivities: LoyaltyActivity[] = [
-        {
-          id: "la_001",
-          type: "earned",
-          points: 45,
-          description: "Points earned from order #KT2025001",
-          createdAt: "2025-06-10T15:45:00Z",
-          orderId: "ord_001"
-        },
-        {
-          id: "la_002",
-          type: "redeemed",
-          points: -100,
-          description: "Redeemed for ₹10 discount",
-          createdAt: "2025-06-05T12:30:00Z"
-        },
-        {
-          id: "la_003",
-          type: "earned",
-          points: 65,
-          description: "Points earned from order #KT2025002",
-          createdAt: "2025-06-15T11:20:00Z",
-          orderId: "ord_002"
-        },
-        {
-          id: "la_004",
-          type: "earned",
-          points: 20,
-          description: "Birthday bonus points",
-          createdAt: "2025-06-01T00:00:00Z"
-        }
-      ];
-
-      setLoyaltyData(mockData);
-      setActivities(mockActivities);
+      toast.error('Failed to load loyalty data');
+      setActivities([]);
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +140,12 @@ export default function LoyaltyPage() {
     if (isAuthenticated) {
       fetchLoyaltyData();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Get current tier info
   const getCurrentTier = () => {
@@ -195,17 +185,26 @@ export default function LoyaltyPage() {
       return;
     }
 
+    const proceed = window.confirm('This generates a one-time coupon. It expires in 7 days if unused. Continue?');
+    if (!proceed) return;
+
     try {
+      setClaimingPoints(points);
       const response = await fetch('/api/user/loyalty/redeem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-name': user?.name || '',
+          'x-user-email': user?.email || '',
+          'x-user-phone': user?.phoneNumber || '',
         },
         body: JSON.stringify({ points })
       });
 
       if (response.ok) {
-        toast.success(`Successfully redeemed ${points} points!`);
+        const payload = await response.json();
+        toast.success(`Coupon ${payload?.coupon?.code || ''} created. Expires in 7 days.`);
         fetchLoyaltyData(); // Refresh data
       } else {
         throw new Error('Failed to redeem points');
@@ -213,6 +212,8 @@ export default function LoyaltyPage() {
     } catch (error) {
       console.error('Redeem error:', error);
       toast.error("Failed to redeem points");
+    } finally {
+      setClaimingPoints(null);
     }
   };
 
@@ -233,8 +234,8 @@ export default function LoyaltyPage() {
   const progress = getProgressToNextTier();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="account-shell">
+      <div className="app-container-narrow">
         {/* Header */}
         <div className="flex items-center space-x-4 mb-6">
           <Button
@@ -246,13 +247,13 @@ export default function LoyaltyPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Loyalty Points</h1>
-            <p className="text-gray-600">Track and redeem your reward points</p>
+            <h1 className="account-title">Loyalty Points</h1>
+            <p className="account-subtitle">Track and redeem your reward points</p>
           </div>
         </div>
 
         {/* Points Overview */}
-        <Card className="mb-6">
+        <Card className="account-panel mb-6">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Award className="h-5 w-5 text-red-600" />
@@ -285,7 +286,7 @@ export default function LoyaltyPage() {
         </Card>
 
         {/* Current Tier & Progress */}
-        <Card className="mb-6">
+        <Card className="account-panel mb-6">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Star className="h-5 w-5 text-yellow-500" />
@@ -327,7 +328,7 @@ export default function LoyaltyPage() {
         </Card>
         
         {/* Redeem Points */}
-        <Card className="mb-6">
+        <Card className="account-panel mb-6">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Gift className="h-5 w-5 text-green-600" />
@@ -341,11 +342,11 @@ export default function LoyaltyPage() {
                 <div className="text-sm text-gray-600 mb-3">50 Points</div>
                 <Button
                   size="sm"
-                  disabled={loyaltyData.currentPoints < 50}
+                  disabled={loyaltyData.currentPoints < 50 || claimingPoints === 50}
                   onClick={() => handleRedeemPoints(50)}
                   className="w-full"
                 >
-                  Redeem
+                  {claimingPoints === 50 ? 'Claiming...' : 'Redeem'}
                 </Button>
               </div>
               
@@ -354,11 +355,11 @@ export default function LoyaltyPage() {
                 <div className="text-sm text-gray-600 mb-3">100 Points</div>
                 <Button
                   size="sm"
-                  disabled={loyaltyData.currentPoints < 100}
+                  disabled={loyaltyData.currentPoints < 100 || claimingPoints === 100}
                   onClick={() => handleRedeemPoints(100)}
                   className="w-full"
                 >
-                  Redeem
+                  {claimingPoints === 100 ? 'Claiming...' : 'Redeem'}
                 </Button>
               </div>
               
@@ -367,19 +368,61 @@ export default function LoyaltyPage() {
                 <div className="text-sm text-gray-600 mb-3">250 Points</div>
                 <Button
                   size="sm"
-                  disabled={loyaltyData.currentPoints < 250}
+                  disabled={loyaltyData.currentPoints < 250 || claimingPoints === 250}
                   onClick={() => handleRedeemPoints(250)}
                   className="w-full"
                 >
-                  Redeem
+                  {claimingPoints === 250 ? 'Claiming...' : 'Redeem'}
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        <Card className="account-panel mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Gift className="h-5 w-5 text-red-600" />
+              <span>Claimed Coupons</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {claimedCoupons.length === 0 ? (
+              <p className="text-sm text-gray-500">No claimed coupons yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {claimedCoupons.map((coupon) => {
+                  const ms = new Date(coupon.expiresAt).getTime() - nowTs;
+                  const expired = ms <= 0;
+                  const days = Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)));
+                  const hours = Math.max(0, Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)));
+                  const mins = Math.max(0, Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000)));
+                  return (
+                    <div key={coupon.id} className="rounded-xl border border-gray-200 p-3 flex items-center justify-between">
+                      <div>
+                        <p className="font-mono text-sm font-semibold text-gray-900">{coupon.code}</p>
+                        <p className="text-xs text-gray-500">Discount: ₹{Number(coupon.discountAmount).toFixed(0)}</p>
+                        <p className="text-xs text-gray-500">
+                          {coupon.isUsed
+                            ? 'Used'
+                            : expired
+                              ? 'Expired'
+                              : `Expires in ${days}d ${hours}h ${mins}m`}
+                        </p>
+                      </div>
+                      <Badge className={coupon.isUsed ? 'bg-gray-100 text-gray-700' : expired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}>
+                        {coupon.isUsed ? 'Used' : expired ? 'Expired' : 'Active'}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Points History */}
-        <Card>
+        <Card className="account-panel">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-blue-600" />

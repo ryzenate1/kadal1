@@ -1,737 +1,537 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
-import { X, Search, MapPin, Home, Briefcase, Map, Navigation, ChevronRight, ChevronLeft, Check, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Crosshair, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
-import { useLocation, type Address, type LocationContextType } from '@/context/LocationContext';
+import { useLocation, type Address } from '@/context/LocationContext';
+import { useAuth } from '@/context/AuthContext';
+import MapLibreMap from '@/components/maps/MapLibreMap';
+import LocationSearchInput, { type GeoResult } from '@/components/maps/LocationSearchInput';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
-type ViewType = 'main' | 'map' | 'save-address';
-
-type SearchResult = {
-  lat: string;
-  lon: string;
-  display_name: string;
-  place_id: string;
-  address?: {
-    [key: string]: string;
-  };
+type LocationFlowProps = {
+  onClose: () => void;
+  onLocationSelect: (location: Address) => void;
+  apiKey?: string;
 };
 
-interface Location {
+type DraftLocation = {
   lat: number;
   lng: number;
-  address_string: string;
-  display_name?: string;
-  place_id?: string;
-  id?: string;
-  user_id?: string;
-  door_no?: string;
-  building?: string;
-  landmark?: string;
-  name?: string;
-  phone?: string;
-  tag?: 'home' | 'work' | 'other';
-  created_at?: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+const CHENNAI = { lat: 13.0827, lng: 80.2707 };
+const RECENTS_KEY = 'recentLocations_v1';
+const RECENTS_LIMIT = 6;
+
+type RecentLocation = {
+  lat: number;
+  lng: number;
+  address: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+};
+
+type ResolvedLocation = {
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+function loadRecents(): RecentLocation[] {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((r) => r && typeof r.address === 'string' && typeof r.lat === 'number' && typeof r.lng === 'number')
+      .slice(0, RECENTS_LIMIT);
+  } catch {
+    return [];
+  }
 }
 
-interface LocationFlowProps {
-  onClose: () => void;
-  onLocationSelect: (location: Location) => void;
-  apiKey: string;
+function saveRecents(items: RecentLocation[]) {
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(items.slice(0, RECENTS_LIMIT)));
+  } catch {
+    // ignore
+  }
 }
 
-export function LocationFlow({ onClose, onLocationSelect, apiKey }: LocationFlowProps) {
-  const locationContext = useLocation();
-  const { currentAddress } = locationContext;
-  
-  // Safely access context properties with fallbacks
-  const addresses = 'addresses' in locationContext ? locationContext.addresses : [];
-  const saveAddress = 'saveAddress' in locationContext ? locationContext.saveAddress : async () => {
-    console.warn('saveAddress called outside provider');
-    return {} as Address;
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    if (!res.ok) {
+      throw new Error('Reverse geocode failed');
+    }
+
+    const data = (await res.json()) as { display_name?: string };
+    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch {
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+}
+
+function parseAddressParts(address: string): Pick<ResolvedLocation, 'city' | 'state' | 'pincode'> {
+  const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+  const pincodeMatch = address.match(/\b\d{6}\b/);
+  const pincode = pincodeMatch?.[0] || '';
+
+  let state = '';
+  let city = '';
+
+  if (parts.length >= 2) {
+    state = parts[parts.length - 2] || '';
+    city = parts[parts.length - 3] || parts[parts.length - 2] || '';
+  }
+
+  if (!state && address.toLowerCase().includes('tamil nadu')) {
+    state = 'Tamil Nadu';
+  }
+
+  return { city, state, pincode };
+}
+
+function buildResolvedLocation(address: string, partial?: Partial<ResolvedLocation>): ResolvedLocation {
+  const parsed = parseAddressParts(address);
+  return {
+    address,
+    city: partial?.city || parsed.city || 'Chennai',
+    state: partial?.state || parsed.state || 'Tamil Nadu',
+    pincode: partial?.pincode || parsed.pincode || '',
   };
-  const setLocation = 'setLocation' in locationContext ? locationContext.setLocation : () => {
-    console.warn('setLocation called outside provider');
-  };
-  const isLoading = 'isLoading' in locationContext ? locationContext.isLoading : false;
-  const [view, setView] = useState<ViewType>('main');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Location[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
-  const [formData, setFormData] = useState<{
-    name: string;
-    phone: string;
-    doorNo: string;
-    building: string;
-    landmark: string;
-    tag: 'home' | 'work' | 'other';
-  }>({
-    name: '',
-    phone: '',
-    doorNo: '',
-    building: '',
-    landmark: '',
-    tag: 'home',
+}
+
+export function LocationFlow({ onClose, onLocationSelect }: LocationFlowProps) {
+  const { isAuthenticated } = useAuth();
+  const { currentAddress, addresses, saveAddress, setLocation, isLoading } = useLocation();
+
+  const initialCenter = useMemo(
+    () =>
+      currentAddress
+        ? { lat: currentAddress.lat, lng: currentAddress.lng }
+        : CHENNAI,
+    [currentAddress]
+  );
+
+  const [draft, setDraft] = useState<DraftLocation>({
+    lat: initialCenter.lat,
+    lng: initialCenter.lng,
+    address: currentAddress?.address_string || 'Select a location on map',
+    city: '',
+    state: '',
+    pincode: '',
   });
 
-  // Handle search input change
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
-    if (query.length < 3) {
-      setSearchResults([]);
-      return;
-    }
+  const [name, setName] = useState(currentAddress?.name || '');
+  const [phone, setPhone] = useState(currentAddress?.phone || '');
+  const [doorNo, setDoorNo] = useState(currentAddress?.door_no || '');
+  const [building, setBuilding] = useState(currentAddress?.building || '');
+  const [landmark, setLandmark] = useState(currentAddress?.landmark || '');
+  const [tag, setTag] = useState<Address['tag']>(currentAddress?.tag || 'home');
+  const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [view, setView] = useState<'browse' | 'confirm' | 'map'>('browse');
+  const [recents, setRecents] = useState<RecentLocation[]>(() => loadRecents());
 
-    setIsSearching(true);
-    try {
-      // Using OpenStreetMap Nominatim API for geocoding
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
-      );
-      const data: SearchResult[] = await response.json();
-      
-      const formattedResults: Location[] = data.map(result => ({
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-        address_string: result.display_name,
-        display_name: result.display_name,
-        place_id: result.place_id
-      }));
-      
-      setSearchResults(formattedResults);
-    } catch (error) {
-      console.error('Error searching locations:', error);
-      toast.error('Failed to search locations');
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  // Handle selecting a search result
-  const handleSelectResult = useCallback((result: Location) => {
-    setSelectedLocation(result);
-    setView('save-address');
-  }, []);
-
-  // Handle map position change
-  const handleMapPositionChange = useCallback(async (lat: number, lng: number, address?: string) => {
-    // Create a base location object with all required properties
-    const baseLocation = (prev: Location | null) => ({
+  const applyDraft = (
+    lat: number,
+    lng: number,
+    address: string,
+    partial?: Partial<ResolvedLocation>
+  ) => {
+    const resolved = buildResolvedLocation(address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`, partial);
+    setDraft({
       lat,
       lng,
-      address_string: address || 'Getting address...',
-      display_name: address || '',
-      // Include all required properties from the Location type
-      ...(prev || {}),
-      // Ensure we don't have any undefined values for required properties
-      place_id: prev?.place_id || '',
-      id: prev?.id || '',
-      user_id: prev?.user_id || '',
-      door_no: prev?.door_no || '',
-      building: prev?.building || '',
-      landmark: prev?.landmark || '',
-      name: prev?.name || '',
-      phone: prev?.phone || '',
-      tag: prev?.tag || 'other',
-      created_at: prev?.created_at || new Date().toISOString(),
+      address: resolved.address,
+      city: resolved.city,
+      state: resolved.state,
+      pincode: resolved.pincode,
     });
+  };
 
-    // Update the location immediately
-    setSelectedLocation(prev => baseLocation(prev));
-    
-    // If we don't have an address, try to get one using Google's reverse geocoding
-    if (!address) {
-      try {
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch address');
-        }
-        
-        const data = await response.json();
-        
-        if (data.results && data.results.length > 0) {
-          const formattedAddress = data.results[0].formatted_address;
-          setSelectedLocation(prev => ({
-            ...baseLocation(prev),
-            address_string: formattedAddress,
-            display_name: formattedAddress,
-          }));
-        }
-      } catch (error) {
-        console.error('Reverse geocoding error:', error);
-        // Fallback to coordinates if reverse geocoding fails
-        setSelectedLocation(prev => ({
-          ...baseLocation(prev),
-          address_string: `Location at ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-        }));
-      }
-    }
-  }, []);
+  const pushRecent = (item: RecentLocation) => {
+    const normalized = item.address.trim();
+    if (!normalized) return;
+    const next = [{ ...item, address: normalized }, ...recents.filter((r) => r.address !== normalized)].slice(
+      0,
+      RECENTS_LIMIT
+    );
+    setRecents(next);
+    saveRecents(next);
+  };
 
-  // Handle getting current location
-  // Check if geolocation is available and request permission
-  const checkGeolocationPermission = useCallback(async (): Promise<boolean> => {
-    if (!navigator.permissions) {
-      // Permissions API not supported, we'll have to try directly
-      return true;
-    }
+  const handleSearchSelect = (result: GeoResult) => {
+    applyDraft(result.lat, result.lng, result.address, {
+      city: result.city || '',
+      state: result.state || '',
+    });
+    pushRecent({ lat: result.lat, lng: result.lng, address: result.address, city: result.city, state: result.state });
+    setView('confirm');
+  };
 
-    try {
-      const permissionStatus = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-      
-      if (permissionStatus.state === 'granted') {
-        return true;
-      } else if (permissionStatus.state === 'prompt') {
-        // Permission hasn't been granted or denied yet
-        return new Promise((resolve) => {
-          const timeout = setTimeout(() => resolve(false), 1000);
-          permissionStatus.onchange = () => {
-            clearTimeout(timeout);
-            resolve(permissionStatus.state === 'granted');
-          };
-        });
-      }
-      return false;
-    } catch (error) {
-      console.error('Error checking geolocation permission:', error);
-      return true; // Try anyway if we can't check permissions
-    }
-  }, []);
-
-  const handleGetCurrentLocation = useCallback(async () => {
+  const handleUseCurrentLocation = async () => {
     if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser');
+      toast.error('Geolocation is not supported in this browser.');
       return;
     }
 
-    setIsSearching(true);
-    
+    setDetecting(true);
     try {
-      // First check if we have permission
-      const hasPermission = await checkGeolocationPermission();
-      if (!hasPermission) {
-        toast.error('Please allow location access to use this feature');
-        return;
-      }
-
-      // Try to get the position with a timeout
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        let timeoutId: NodeJS.Timeout;
-        
-        const success = (position: GeolocationPosition) => {
-          clearTimeout(timeoutId);
-          resolve(position);
-        };
-        
-        const error = (error: GeolocationPositionError) => {
-          clearTimeout(timeoutId);
-          reject(error);
-        };
-        
-        // Set a timeout to handle cases where the browser doesn't respond
-        timeoutId = setTimeout(() => {
-          reject(new Error('Geolocation request timed out'));
-        }, 10000);
-        
-        // Request the position
-        navigator.geolocation.getCurrentPosition(
-          success,
-          error,
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-          }
-        );
-      });
-
-      const { latitude, longitude } = position.coords;
-      
-      // Create and set the initial location with all required properties
-      setSelectedLocation({
-        lat: latitude,
-        lng: longitude,
-        address_string: 'Getting address...',
-        display_name: '',
-      });
-      
-      // Try to get the address, but don't block on it
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          setSelectedLocation({
-            lat: latitude,
-            lng: longitude,
-            address_string: data.display_name || 'Selected location',
-            display_name: data.display_name || '',
-          });
-        }
-      } catch (error) {
-        console.error('Reverse geocoding error:', error);
-        // Continue with just the coordinates if reverse geocoding fails
-        setSelectedLocation({
-          lat: latitude,
-          lng: longitude,
-          address_string: `Location at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-          display_name: '',
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
         });
-      }
-      
-      // Switch to save address view
-      setView('save-address');
-      
-    } catch (error) {
-      console.error('Geolocation error:', error);
-      
-      if (error instanceof GeolocationPositionError) {
-        switch(error.code) {
-          case 1: // PERMISSION_DENIED
-            toast.error('Please allow location access in your browser settings');
-            // Try to open settings on mobile
-            if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-              try {
-                // @ts-ignore - This is a non-standard API
-                if (navigator.permissions && navigator.permissions.request) {
-                  // @ts-ignore
-                  await navigator.permissions.request({ name: 'geolocation' });
-                }
-              } catch (e) {
-                console.error('Failed to request permission:', e);
-              }
-            }
-            break;
-          case 2: // POSITION_UNAVAILABLE
-            toast.error('Unable to determine your location. Please check your connection or try again later.');
-            break;
-          case 3: // TIMEOUT
-            toast.error('Location request timed out. Please try again.');
-            break;
-          default:
-            toast.error('Error getting your location. Please try again.');
-        }
-      } else if (error instanceof Error && error.message.includes('Geolocation request timed out')) {
-        toast.error('Location request timed out. Please try again.');
-      } else {
-        toast.error('Failed to get your location. Please try again.');
-      }
+      });
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const address = await reverseGeocode(lat, lng);
+      applyDraft(lat, lng, address);
+      const parsed = parseAddressParts(address);
+      pushRecent({ lat, lng, address, ...parsed });
+      toast.success('Current location detected.');
+      setView('confirm');
+    } catch {
+      toast.error('Unable to detect current location.');
     } finally {
-      setIsSearching(false);
+      setDetecting(false);
     }
-  }, []);
+  };
 
-  // Handle saving address
-  const handleSaveAddress = useCallback(async () => {
-    if (!selectedLocation) return;
-    
+  // "Deliver here" — sets the active delivery location for this session.
+  // Does NOT require a pincode; always succeeds as long as address + name are provided.
+  // If authenticated and pincode is available, also persists to the address book.
+  const handleDeliverHere = async () => {
+    if (!draft.address) {
+      toast.error('Please select a valid location.');
+      return;
+    }
+    if (!name.trim()) {
+      toast.error('Please enter a name for this delivery location.');
+      return;
+    }
+    if (phone && !/^\d{10}$/.test(phone)) {
+      toast.error('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      const address: Omit<Address, 'id' | 'created_at' | 'user_id'> = {
-        lat: selectedLocation.lat,
-        lng: selectedLocation.lng,
-        address_string: selectedLocation.address_string,
-        door_no: formData.doorNo,
-        building: formData.building,
-        landmark: formData.landmark,
-        tag: formData.tag,
-        name: formData.name,
-        phone: formData.phone,
+      const id = `loc-${Date.now()}`;
+      const location: Address = {
+        id,
+        user_id: currentAddress?.user_id || 'current-user',
+        lat: draft.lat,
+        lng: draft.lng,
+        address_string: draft.address,
+        door_no: doorNo,
+        building,
+        landmark,
+        tag,
+        name: name.trim(),
+        phone: phone.trim(),
+        created_at: new Date().toISOString(),
       };
-      
-      const savedAddress = await saveAddress(address);
-      toast.success('Address saved successfully');
-      
-      // Call onLocationSelect with the full address including the ID
-      const updatedLocation: Location = {
-        ...selectedLocation,
-        id: savedAddress.id,
-        user_id: savedAddress.user_id,
-        created_at: savedAddress.created_at,
-        door_no: savedAddress.door_no,
-        building: savedAddress.building,
-        landmark: savedAddress.landmark,
-        name: savedAddress.name,
-        phone: savedAddress.phone,
-        tag: savedAddress.tag,
-      };
-      
-      onLocationSelect(updatedLocation);
-      onClose();
-    } catch (error) {
-      console.error('Error saving address:', error);
-      toast.error('Failed to save address');
-    }
-  }, [selectedLocation, formData, saveAddress, onLocationSelect, onClose]);
 
-  // Handle selecting an address from saved addresses
-  const handleSelectAddress = useCallback((address: Address) => {
-    const location: Location = {
-      id: address.id,
-      user_id: address.user_id,
-      lat: address.lat,
-      lng: address.lng,
-      address_string: address.address_string,
-      door_no: address.door_no,
-      building: address.building,
-      landmark: address.landmark,
-      name: address.name,
-      phone: address.phone,
-      tag: address.tag,
-      created_at: address.created_at
-    };
-    onLocationSelect(location);
-    onClose();
-  }, [onLocationSelect, onClose]);
+      // Always set the current delivery location immediately (no DB required)
+      setLocation(location);
+      onLocationSelect(location);
 
-  // Render the main view
-  const renderMainView = useCallback(() => {
-    return (
-      <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search for area, street name..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
-
-        {isSearching && searchQuery ? (
-          <div className="space-y-2">
-            {searchResults.map((result) => (
-              <div
-                key={result.place_id}
-                className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                onClick={() => handleSelectResult(result)}
-              >
-                <div className="flex items-center">
-                  <MapPin className="h-4 w-4 text-gray-500 mr-2" />
-                  <div className="text-sm">
-                    {result.display_name?.split(',').slice(0, 3).join(', ')}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={handleGetCurrentLocation}
-                disabled={isSearching}
-              >
-                <div className="bg-blue-50 p-2 rounded-full mr-3">
-                  <Navigation className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="font-medium">Use current location</p>
-                  <p className="text-sm text-gray-500">Using GPS</p>
-                </div>
-              </Button>
-
-              <Button
-                variant="outline"
-                className="w-full justify-start h-14 text-left px-4 py-3 rounded-xl border-gray-200 hover:bg-gray-50"
-                onClick={() => setView('map')}
-              >
-                <div className="bg-green-50 p-2 rounded-full mr-3">
-                  <Map className="h-5 w-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="font-medium">Select on map</p>
-                  <p className="text-sm text-gray-500">Choose your delivery location</p>
-                </div>
-              </Button>
-            </div>
-
-            {addresses.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
-                  SAVED ADDRESSES
-                </h3>
-                <div className="space-y-3">
-                  {addresses.map((address) => (
-                    <div
-                      key={address.id}
-                      className="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleSelectAddress(address)}
-                    >
-                      <div className="bg-blue-50 p-2 rounded-lg mr-3">
-                        {address.tag === 'home' && <Home className="h-5 w-5 text-blue-500" />}
-                        {address.tag === 'work' && <Briefcase className="h-5 w-5 text-green-500" />}
-                        {!['home', 'work'].includes(address.tag || '') && (
-                          <MapPin className="h-5 w-5 text-purple-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {address.name} • {address.tag}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">
-                          {address.address_string?.split(',').slice(0, 3).join(', ')}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-gray-400 ml-2 flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    );
-  }, [
-    searchQuery,
-    isSearching,
-    searchResults,
-    addresses,
-    handleSearch,
-    handleSelectResult,
-    handleGetCurrentLocation,
-    handleSelectAddress
-  ]);
-
-  // Render map view
-  const renderMapView = useCallback(() => {
-    const MapComponent = dynamic(
-      () => import('@/components/map/MapComponent').then((mod) => mod.MapComponent),
-      { 
-        ssr: false, 
-        loading: () => (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        )
+      // If authenticated and has pincode, also persist to address book in background
+      if (isAuthenticated && draft.pincode) {
+        try {
+          await saveAddress({
+            lat: draft.lat,
+            lng: draft.lng,
+            address_string: draft.address,
+            door_no: doorNo,
+            building,
+            landmark,
+            tag,
+            name: name.trim(),
+            phone: phone.trim(),
+            city: draft.city,
+            state: draft.state,
+            pincode: draft.pincode,
+          });
+          toast.success('Delivery location saved and selected.');
+        } catch {
+          // Delivery location was set; only the address book save failed
+          toast.success('Delivery location set.');
+        }
+      } else {
+        toast.success('Delivery location updated.');
       }
-    ) as React.ComponentType<{
-      center: { lat: number; lng: number };
-      zoom: number;
-      draggable: boolean;
-      onPositionChange: (lat: number, lng: number, address?: string) => void;
-      className: string;
-      apiKey: string;
-    }>;
 
-    return (
-      <div className="h-full flex flex-col">
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setView('main')}
-              className="h-8 w-8"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h2 className="text-lg font-semibold">Select on map</h2>
-          </div>
-        </div>
-        <div className="flex-1 relative">
-          <MapComponent
-            center={selectedLocation || { lat: 13.0827, lng: 80.2707 }} // Default to Chennai
-            zoom={15}
-            draggable={true}
-            onPositionChange={(lat, lng, address) => {
-              handleMapPositionChange(lat, lng);
-              if (address && selectedLocation) {
-                setSelectedLocation({
-                  ...selectedLocation,
-                  address_string: address,
-                  display_name: address
-                });
-              }
-            }}
-            className="w-full h-full"
-            apiKey={apiKey}
-          />
-        </div>
-        <div className="p-4 border-t">
-          <div className="mb-2">
-            <p className="text-sm font-medium">Selected Location:</p>
-            <p className="text-sm text-gray-600 truncate">
-              {selectedLocation?.address_string || 'Drag the marker to select a location'}
-            </p>
-          </div>
-          <Button
-            className="w-full"
-            onClick={() => setView('save-address')}
-            disabled={!selectedLocation}
-          >
-            Confirm Location
-          </Button>
-        </div>
-      </div>
-    );
-  }, [selectedLocation, handleMapPositionChange, apiKey]);
-
-  // Render save address form
-  const renderSaveAddressForm = () => (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">Save Address</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          {selectedLocation?.address_string}
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Full Name <span className="text-red-500">*</span>
-          </label>
-          <Input
-            placeholder="Enter your name"
-            value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            className="h-12 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Mobile Number <span className="text-red-500">*</span>
-          </label>
-          <Input
-            placeholder="Enter mobile number"
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-            className="h-12 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Flat/House No. <span className="text-red-500">*</span>
-          </label>
-          <Input
-            placeholder="Enter flat/house no."
-            value={formData.doorNo}
-            onChange={(e) => setFormData({...formData, doorNo: e.target.value})}
-            className="h-12 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Building/Street Name <span className="text-red-500">*</span>
-          </label>
-          <Input
-            placeholder="Enter building/street name"
-            value={formData.building}
-            onChange={(e) => setFormData({...formData, building: e.target.value})}
-            className="h-12 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Landmark (Optional)
-          </label>
-          <Input
-            placeholder="E.g. Near metro station"
-            value={formData.landmark}
-            onChange={(e) => setFormData({...formData, landmark: e.target.value})}
-            className="h-12 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Save as
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { value: 'home', label: 'Home', icon: <Home className="h-5 w-5" /> },
-              { value: 'work', label: 'Work', icon: <Briefcase className="h-5 w-5" /> },
-              { value: 'other', label: 'Other', icon: <MapPin className="h-5 w-5" /> },
-            ].map((type) => (
-              <Button
-                key={type.value}
-                type="button"
-                variant={formData.tag === type.value ? 'default' : 'outline'}
-                className={cn(
-                  "flex-col h-auto py-3 rounded-xl",
-                  formData.tag === type.value 
-                    ? "bg-blue-600 hover:bg-blue-700" 
-                    : "border-gray-200 hover:bg-gray-50"
-                )}
-                onClick={() => setFormData({...formData, tag: type.value as any})}
-              >
-                <span className={cn("mb-1", formData.tag !== type.value && "text-gray-600")}>
-                  {type.icon}
-                </span>
-                <span className="text-sm">{type.label}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t">
-        <Button 
-          className="w-full h-12 rounded-xl text-base font-medium"
-          onClick={handleSaveAddress}
-          disabled={!formData.name || !formData.phone || !formData.doorNo || !formData.building}
-        >
-          Save Address & Continue
-        </Button>
-      </div>
-    </div>
-  );
-
-  // Render the current view
-  const renderView = useCallback(() => {
-    switch (view) {
-      case 'map':
-        return renderMapView();
-      case 'save-address':
-        return renderSaveAddressForm();
-      case 'main':
-      default:
-        return renderMainView();
+      onClose();
+    } finally {
+      setSaving(false);
     }
-  }, [view, renderMapView, renderSaveAddressForm, renderMainView]);
+  };
+
+  // "Save address" — requires pincode to persist to the DB address book
+  const handleSaveAddress = async () => {
+    if (!draft.address) {
+      toast.error('Please select a valid location.');
+      return;
+    }
+    if (!name.trim()) {
+      toast.error('Please enter a name for this address.');
+      return;
+    }
+    if (phone && !/^\d{10}$/.test(phone)) {
+      toast.error('Please enter a valid 10-digit phone number.');
+      return;
+    }
+    if (!draft.pincode) {
+      toast.error('Please choose a location with a valid pincode to save to address book.');
+      return;
+    }
+    if (!isAuthenticated) {
+      toast.error('Please log in to save addresses to your account.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const saved = await saveAddress({
+        lat: draft.lat,
+        lng: draft.lng,
+        address_string: draft.address,
+        door_no: doorNo,
+        building,
+        landmark,
+        tag,
+        name: name.trim(),
+        phone: phone.trim(),
+        city: draft.city,
+        state: draft.state,
+        pincode: draft.pincode,
+      });
+
+      setLocation(saved);
+      onLocationSelect(saved);
+      toast.success('Address saved to your account.');
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save location.';
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b p-4">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={view === 'main' ? onClose : () => setView('main')}
-            className="p-1 -ml-1"
-          >
-            <X className="h-6 w-6 text-gray-600" />
-          </button>
-          <h1 className="text-lg font-semibold">
-            {view === 'save-address' ? 'Save Address' : 'Choose Location'}
-          </h1>
-          <div className="w-6"></div> {/* For alignment */}
-        </div>
+    <div className="flex max-h-[85vh] flex-col bg-white sm:max-h-[80vh]">
+      <div className="border-b px-5 py-4">
+        <h3 className="text-base font-semibold text-gray-900">Choose delivery location</h3>
+        <p className="text-xs text-gray-500">Search first • map optional</p>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
-        {renderView()}
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+        {/* Search */}
+        <LocationSearchInput
+          onSelect={handleSearchSelect}
+          placeholder="Search area, street, landmark"
+          autoFocus
+        />
+
+        {/* Quick actions */}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={handleUseCurrentLocation} disabled={detecting}>
+            <Crosshair className="mr-2 h-4 w-4" />
+            {detecting ? 'Detecting...' : 'Use current'}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setView('map')}>
+            <MapPin className="mr-2 h-4 w-4" />
+            Choose on map
+          </Button>
+        </div>
+
+        {/* Saved addresses */}
+        {addresses.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Saved addresses</div>
+            <div className="space-y-2">
+              {addresses.slice(0, 6).map((addr) => (
+                <button
+                  key={addr.id}
+                  type="button"
+                  onClick={() => {
+                    setLocation(addr);
+                    onLocationSelect(addr);
+                    toast.success('Delivery location updated.');
+                    onClose();
+                  }}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left hover:bg-gray-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-600">
+                      <MapPin className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{addr.tag.toUpperCase()}</span>
+                        {currentAddress?.id === addr.id && (
+                          <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 text-xs text-gray-600">{addr.address_string}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent */}
+        {recents.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent</div>
+            <div className="space-y-2">
+              {recents.map((r) => (
+                <button
+                  key={`${r.lat}-${r.lng}-${r.address}`}
+                  type="button"
+                  onClick={() => {
+                    applyDraft(r.lat, r.lng, r.address, {
+                      city: r.city,
+                      state: r.state,
+                      pincode: r.pincode,
+                    });
+                    setView('confirm');
+                  }}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left hover:bg-gray-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600">
+                      <MapPin className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900">{r.address.split(',')[0]}</div>
+                      <div className="mt-0.5 truncate text-xs text-gray-600">
+                        {r.address.split(',').slice(1, 3).join(',').trim()}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Map view */}
+        {view === 'map' && (
+          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200">
+            <div className="h-72">
+              <MapLibreMap
+                center={{ lat: draft.lat, lng: draft.lng }}
+                zoom={16}
+                draggable
+                onPositionChange={(lat, lng, address) => applyDraft(lat, lng, address || draft.address)}
+              />
+            </div>
+            <div className="space-y-3 border-t bg-white p-4">
+              <div className="text-xs text-gray-600 line-clamp-2">{draft.address}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" onClick={() => setView('browse')}>
+                  Back
+                </Button>
+                <Button type="button" onClick={() => setView('confirm')}>
+                  Use this location
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm */}
+        {view === 'confirm' && (
+          <div className="mt-5">
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <MapPin className="h-4 w-4 text-red-500" />
+                Confirm delivery location
+              </div>
+              <p className="text-xs text-gray-700 line-clamp-2">{draft.address}</p>
+              {!draft.pincode && (
+                <p className="mt-1 text-xs text-amber-600">
+                  No pincode detected — location will be set for this session only
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Input
+                placeholder="Phone"
+                value={phone}
+                maxLength={10}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              />
+              <Input placeholder="Door No" value={doorNo} onChange={(e) => setDoorNo(e.target.value)} />
+              <Input placeholder="Building" value={building} onChange={(e) => setBuilding(e.target.value)} />
+            </div>
+
+            <div className="mt-2">
+              <Input placeholder="Landmark (optional)" value={landmark} onChange={(e) => setLandmark(e.target.value)} />
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              {(['home', 'work', 'other'] as const).map((nextTag) => (
+                <button
+                  key={nextTag}
+                  type="button"
+                  onClick={() => setTag(nextTag)}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                    tag === nextTag
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {nextTag.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button type="button" onClick={handleDeliverHere} disabled={saving || isLoading}>
+                {saving || isLoading ? 'Saving...' : 'Deliver here'}
+              </Button>
+              {isAuthenticated && draft.pincode && (
+                <Button type="button" variant="outline" onClick={handleSaveAddress} disabled={saving || isLoading}>
+                  {saving || isLoading ? 'Saving...' : 'Save to address book'}
+                </Button>
+              )}
+            </div>
+
+            <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => setView('browse')}>
+              Choose a different location
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+export default LocationFlow;

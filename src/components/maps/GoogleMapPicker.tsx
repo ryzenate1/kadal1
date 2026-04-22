@@ -203,7 +203,7 @@ export default function GoogleMapPicker({
           mapRef.current.style.display = 'block';
           
           // Force a reflow
-          mapRef.current.offsetHeight;
+          void mapRef.current.offsetHeight;
         }
 
         // Load Google Maps API

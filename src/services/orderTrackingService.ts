@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useAuth } from '@/context/AuthContext';
-import { toast } from 'sonner';
+import { getSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 // Interface for order tracking data
 export interface OrderTrackingData {
@@ -53,15 +54,14 @@ export interface OrderTrackingData {
 
 // Custom hook for tracking an order in real-time
 export function useOrderTracking(orderId: string | null) {
-  const { user, isAuthenticated, getToken } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trackingData, setTrackingData] = useState<OrderTrackingData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLive, setIsLive] = useState(false);
-  
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   
   // Function to fetch tracking data via REST API
   const fetchTrackingData = useCallback(async () => {
@@ -71,10 +71,8 @@ export function useOrderTracking(orderId: string | null) {
       setIsLoading(true);
       setError(null);
       
-      const token = await getToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${orderId}/tracking`, {
+      const response = await fetch(`/api/orders/${orderId}/tracking`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -85,119 +83,111 @@ export function useOrderTracking(orderId: string | null) {
       
       const data = await response.json();
       setTrackingData(data);
+      setIsConnected(true);
+      setIsLive(true);
     } catch (err) {
       console.error('Error fetching order tracking:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tracking data');
-      toast.error('Failed to load tracking information');
+      setIsConnected(false);
+      setIsLive(false);
     } finally {
       setIsLoading(false);
     }
-  }, [orderId, isAuthenticated, getToken]);
-  
-  // Function to connect to WebSocket
-  const connectWebSocket = useCallback(async () => {
-    if (!orderId || !isAuthenticated) return;
-    
-    try {
-      // Close existing connection if any
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      
-      // Clear any pending reconnect timeout
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      
-      const token = await getToken();
-      const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5001'}/ws?token=${token}&orderId=${orderId}`;
-      
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-      
-      ws.onopen = () => {
-        setIsConnected(true);
-        setIsLive(true);
-        console.log('WebSocket connected for order tracking');
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'order_update') {
-            setTrackingData(data.data);
-            setIsLoading(false);
-          } else if (data.type === 'error') {
-            console.error('WebSocket error:', data.message);
-            setError(data.message);
-            toast.error(data.message);
-          } else if (data.type === 'connected') {
-            console.log('WebSocket connected:', data);
-          }
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err, event.data);
-        }
-      };
-      
-      ws.onerror = (event) => {
-        console.error('WebSocket error:', event);
-        setIsConnected(false);
-        setError('WebSocket connection error');
-      };
-      
-      ws.onclose = () => {
-        setIsConnected(false);
-        setIsLive(false);
-        
-        // Try to reconnect after a delay
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('Attempting to reconnect WebSocket...');
-          connectWebSocket();
-        }, 5000);
-      };
-      
-      // Set up ping interval to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 30000);
-      
-      // Clean up ping interval when component unmounts
-      return () => {
-        clearInterval(pingInterval);
-      };
-    } catch (err) {
-      console.error('Error connecting to WebSocket:', err);
-      setError(err instanceof Error ? err.message : 'WebSocket connection failed');
-      setIsConnected(false);
-    }
-  }, [orderId, isAuthenticated, getToken]);
+  }, [orderId, isAuthenticated]);
   
   // Initialize tracking on component mount
   useEffect(() => {
     if (orderId && isAuthenticated) {
-      // First get data via REST API
       fetchTrackingData();
-      
-      // Then connect to WebSocket for real-time updates
-      connectWebSocket();
     }
     
     return () => {
-      // Clean up WebSocket connection on unmount
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
       }
-      
-      // Clear any pending reconnect timeout
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+
+      if (realtimeChannelRef.current) {
+        realtimeChannelRef.current.unsubscribe();
+        realtimeChannelRef.current = null;
       }
     };
-  }, [orderId, isAuthenticated, fetchTrackingData, connectWebSocket]);
+  }, [orderId, isAuthenticated, fetchTrackingData]);
+
+  useEffect(() => {
+    if (!orderId || !isAuthenticated) {
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const resolvedOrderId = trackingData?.order?.id;
+
+    if (realtimeChannelRef.current) {
+      realtimeChannelRef.current.unsubscribe();
+      realtimeChannelRef.current = null;
+    }
+
+    if (!supabase || !resolvedOrderId) {
+      setIsConnected(false);
+      setIsLive(false);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+      }
+      pollRef.current = setInterval(() => {
+        fetchTrackingData();
+      }, 15000);
+      return () => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+        }
+      };
+    }
+
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`order-tracking-${resolvedOrderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${resolvedOrderId}`,
+        },
+        () => {
+          fetchTrackingData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_events',
+          filter: `order_id=eq.${resolvedOrderId}`,
+        },
+        () => {
+          fetchTrackingData();
+        }
+      )
+      .subscribe((status) => {
+        const connected = status === 'SUBSCRIBED';
+        setIsConnected(connected);
+        setIsLive(connected);
+      });
+
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      channel.unsubscribe();
+      if (realtimeChannelRef.current === channel) {
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [orderId, isAuthenticated, trackingData?.order?.id, fetchTrackingData]);
   
   // Function to refresh tracking data on demand
   const refreshTracking = useCallback(() => {

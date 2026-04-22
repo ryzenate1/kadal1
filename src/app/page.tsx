@@ -12,16 +12,18 @@ import ShopByCategory from "@/components/shared/ShopByCategory";
 export default function Home() {
   return (
     <div className="bg-[var(--primary-bg)] min-h-screen">
+      {/* Hero Banner - full width, no container padding */}
+      <HeroBanner />
+
       <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
-        <HeroBanner />
-        <div className="mb-2 sm:mb-3"></div>
-        
-        {/* Simple Trust Badges - FSSAI, Same Day Delivery, Best Price, Premium Quality */}
-        <SimpleTrustBadges />
-        <div className="mb-4 sm:mb-6"></div>
+        <div className="mb-6 sm:mb-8"></div>
         
         {/* Featured Image Carousel - Fresh Catch Gallery */}
         <ImageCarousel />
+        <div className="mb-4 sm:mb-6"></div>
+        
+        {/* Simple Trust Badges - moved below carousel */}
+        <SimpleTrustBadges />
         <div className="mb-6 sm:mb-8"></div>
         
         {/* Shop by Categories with rounded cards */}

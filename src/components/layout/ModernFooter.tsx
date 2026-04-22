@@ -67,22 +67,22 @@ const ModernFooter = () => {
       id: 'company',
       title: 'Company',
       links: [
-        { name: 'About Us', href: '/about' },
-        { name: 'Our Story', href: '/about#story' },
-        { name: 'Careers', href: '/careers' },
+        { name: 'Home', href: '/' },
+        { name: 'Shop', href: '/categories' },
         { name: 'Blog', href: '/blog' },
-        { name: 'Press', href: '/press' }
+        { name: 'Offers', href: '/offers' },
+        { name: 'Reviews', href: '/reviews' }
       ]
     },
     {
       id: 'customer-service',
       title: 'Customer Service',
       links: [
-        { name: 'Help Center', href: '/help' },
+        { name: 'Help Center', href: '/help-support' },
         { name: 'Track Order', href: '/track-order' },
-        { name: 'Returns', href: '/returns' },
-        { name: 'Shipping Info', href: '/shipping' },
-        { name: 'Contact Us', href: '/contact' }
+        { name: 'My Orders', href: '/orders' },
+        { name: 'Privacy Policy', href: '/privacy' },
+        { name: 'Terms of Service', href: '/terms-of-service' }
       ]
     }
   ];
@@ -133,7 +133,7 @@ const ModernFooter = () => {
       <div className="relative z-10">
         {/* Main footer content */}
         <div className="py-8">
-          <div className="container-xl">
+          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 lg:gap-6">
               {/* Brand section */}
               <motion.div 
@@ -278,7 +278,7 @@ const ModernFooter = () => {
           className="border-t border-gray-200 py-8"
           variants={itemVariants}
         >
-          <div className="container-xl">
+          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
             {/* Payment methods */}
             <div className="mb-4">
               <h4 className="font-semibold text-[var(--text-primary)] mb-2 text-center lg:text-left text-sm">
