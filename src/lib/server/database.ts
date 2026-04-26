@@ -2,10 +2,6 @@ import { Pool, PoolClient } from 'pg';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is not configured');
-}
-
 const globalForDb = globalThis as unknown as {
   kadalPool?: Pool;
   kadalSchemaReady?: Promise<void>;
@@ -29,20 +25,24 @@ function toSessionUrl(url: string): string {
   }
 }
 
-const SESSION_URL = toSessionUrl(DATABASE_URL);
+const SESSION_URL = DATABASE_URL ? toSessionUrl(DATABASE_URL) : '';
 
-export const db =
-  globalForDb.kadalPool ??
-  new Pool({
+// db is lazily created — if DATABASE_URL is absent at build time the Pool is
+// not instantiated and no error is thrown.  The error is deferred to the first
+// actual request, where the env var is guaranteed to be present in production.
+function createPool(): Pool {
+  return new Pool({
     connectionString: SESSION_URL,
     ssl: { rejectUnauthorized: false },
-    // Serverless-friendly pool sizing:
-    max: 3,                // keep a small pool — Next.js can spawn many workers
+    max: 3,                      // small pool — Next.js can spawn many workers
     idleTimeoutMillis: 30_000,   // release idle connections after 30 s
     connectionTimeoutMillis: 10_000, // fail fast instead of hanging
   });
+}
 
-if (!globalForDb.kadalPool) {
+export const db: Pool = globalForDb.kadalPool ?? (DATABASE_URL ? createPool() : null as unknown as Pool);
+
+if (DATABASE_URL && !globalForDb.kadalPool) {
   globalForDb.kadalPool = db;
 }
 
@@ -399,6 +399,9 @@ function isIgnorableSchemaError(error: unknown): boolean {
 // Clears itself on failure so the next request can retry.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function ensureSchema(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not configured');
+  }
   if (!globalForDb.kadalSchemaReady) {
     const attempt = (async () => {
       const client = await db.connect();
